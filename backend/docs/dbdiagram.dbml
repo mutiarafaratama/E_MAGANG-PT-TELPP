@@ -1,0 +1,293 @@
+// e-Magang TELPP — Database Schema
+// Copy-paste ke https://dbdiagram.io/d
+// PT TanjungEnim Lestari Pulp and Paper
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+Enum user_role {
+  admin
+  hrd
+  peserta
+}
+
+Enum kategori_magang {
+  smk
+  d3_s1_s2
+  penelitian
+}
+
+Enum jenis_kelamin {
+  laki_laki
+  perempuan
+}
+
+Enum status_pengajuan {
+  diajukan           [note: "Baru submit, belum diproses HRD"]
+  menunggu_verifikasi [note: "HRD sedang cek berkas"]
+  diproses           [note: "Berkas lengkap, sedang diproses"]
+  diterima           [note: "Pengajuan disetujui"]
+  ditolak            [note: "Pengajuan ditolak"]
+}
+
+Enum jenis_dokumen {
+  proposal_magang
+  ktp
+  ktm
+  pasfoto
+  bpjs_kis
+  surat_balasan
+  laporan_magang
+  sertifikat
+}
+
+Enum status_pelaksanaan {
+  menunggu_mulai  [note: "Diterima, belum mulai magang"]
+  aktif           [note: "Sedang menjalani magang"]
+  upload_laporan  [note: "Magang selesai, menunggu laporan"]
+  penilaian       [note: "Laporan masuk, HRD memberi nilai"]
+  selesai         [note: "Nilai final, sertifikat bisa diunduh"]
+}
+
+Enum status_tiket {
+  menunggu  [note: "Tiket baru, belum ditangani HRD"]
+  diproses  [note: "HRD sedang menangani"]
+  selesai   [note: "Tiket ditutup"]
+}
+
+// ============================================================
+// USERS & AUTH
+// ============================================================
+
+Table users {
+  id            uuid        [pk, default: `gen_random_uuid()`, note: "Primary key"]
+  nama_lengkap  varchar(255) [not null]
+  email         varchar(255) [unique, not null]
+  password_hash varchar(255) [not null]
+  role          user_role   [not null, default: "peserta"]
+  is_active     boolean     [default: true]
+  created_at    timestamptz [default: `NOW()`]
+  updated_at    timestamptz [default: `NOW()`]
+
+  Note: "Tabel utama semua pengguna. 3 role: admin, hrd, peserta"
+}
+
+Table refresh_tokens {
+  id          uuid        [pk, default: `gen_random_uuid()`]
+  user_id     uuid        [not null, ref: > users.id]
+  token_hash  varchar(255) [not null]
+  expires_at  timestamptz [not null]
+  created_at  timestamptz [default: `NOW()`]
+
+  Note: "Token refresh untuk perpanjang sesi tanpa login ulang"
+}
+
+// ============================================================
+// PERIODE MAGANG
+// ============================================================
+
+Table periode_magang {
+  id              uuid    [pk, default: `gen_random_uuid()`]
+  nama            varchar(255) [not null, note: "contoh: Semester Genap 2024"]
+  tanggal_buka    date    [not null]
+  tanggal_tutup   date    [not null]
+  kuota           integer [note: "null = tidak dibatasi"]
+  is_active       boolean [default: false, note: "Hanya 1 periode aktif dalam satu waktu"]
+  created_at      timestamptz [default: `NOW()`]
+
+  Note: "Admin kelola periode penerimaan. Landing page tampilkan periode aktif"
+}
+
+// ============================================================
+// PENGAJUAN MAGANG
+// ============================================================
+
+Table pengajuan_magang {
+  id              uuid             [pk, default: `gen_random_uuid()`]
+  user_id         uuid             [not null, ref: > users.id]
+  nama_lengkap    varchar(255)     [not null]
+  tempat_lahir    varchar(100)     [not null]
+  tanggal_lahir   date             [not null]
+  jenis_kelamin   jenis_kelamin    [not null]
+  alamat          text             [not null]
+  no_hp           varchar(20)      [not null]
+  email           varchar(255)     [not null]
+  kategori_magang kategori_magang  [not null]
+  nomor_induk     varchar(50)      [not null, note: "NIM/NISN/NIP"]
+  asal_institusi  varchar(255)     [not null]
+  jurusan         varchar(255)     [not null]
+  kelas_semester  varchar(50)      [not null]
+  status          status_pengajuan [not null, default: "diajukan"]
+  catatan_hrd     text             [note: "Alasan tolak atau catatan dari HRD"]
+  verified_by     uuid             [ref: > users.id, note: "HRD yang memverifikasi"]
+  verified_at     timestamptz
+  created_at      timestamptz      [default: `NOW()`]
+  updated_at      timestamptz      [default: `NOW()`]
+
+  Note: "Satu user hanya boleh punya satu pengajuan aktif. Multi-step form (Step 1: data diri, Step 2: data akademik)"
+}
+
+Table status_history {
+  id            uuid             [pk, default: `gen_random_uuid()`]
+  pengajuan_id  uuid             [not null, ref: > pengajuan_magang.id]
+  status_lama   status_pengajuan [note: "null jika pengajuan pertama"]
+  status_baru   status_pengajuan [not null]
+  changed_by    uuid             [ref: > users.id, note: "HRD/Admin yang mengubah"]
+  catatan       text
+  created_at    timestamptz      [default: `NOW()`]
+
+  Note: "Audit trail setiap perubahan status pengajuan"
+}
+
+// ============================================================
+// DOKUMEN UPLOAD
+// ============================================================
+
+Table dokumen {
+  id            uuid          [pk, default: `gen_random_uuid()`]
+  pengajuan_id  uuid          [ref: > pengajuan_magang.id, note: "null untuk dokumen non-pengajuan"]
+  user_id       uuid          [not null, ref: > users.id]
+  jenis         jenis_dokumen [not null]
+  nama_file     varchar(255)  [not null]
+  path_file     varchar(500)  [not null, note: "Path relatif di ./uploads/"]
+  ukuran_bytes  bigint
+  mime_type     varchar(100)
+  uploaded_at   timestamptz   [default: `NOW()`]
+
+  Note: "File disimpan di filesystem lokal ./uploads/. Max 100MB per file"
+}
+
+// ============================================================
+// PELAKSANAAN MAGANG
+// ============================================================
+
+Table pelaksanaan_magang {
+  id                      uuid              [pk, default: `gen_random_uuid()`]
+  pengajuan_id            uuid              [unique, not null, ref: - pengajuan_magang.id, note: "1-to-1 dengan pengajuan"]
+  user_id                 uuid              [not null, ref: > users.id]
+  periode_id              uuid              [ref: > periode_magang.id]
+  tanggal_mulai           date              [not null]
+  tanggal_selesai         date              [not null]
+  divisi                  varchar(255)      [note: "Divisi penempatan di TELPP"]
+  pembimbing_id           uuid              [ref: > users.id, note: "HRD/karyawan pembimbing"]
+  status                  status_pelaksanaan [default: "menunggu_mulai"]
+  nilai                   numeric(5,2)      [note: "0.00 - 100.00"]
+  catatan_nilai           text
+  dinilai_oleh            uuid              [ref: > users.id]
+  dinilai_at              timestamptz
+  sertifikat_generated    boolean           [default: false]
+  sertifikat_path         varchar(500)      [note: "Path PDF sertifikat yang digenerate"]
+  sertifikat_generated_at timestamptz
+  created_at              timestamptz       [default: `NOW()`]
+  updated_at              timestamptz       [default: `NOW()`]
+
+  Note: "Dibuat otomatis saat HRD set pengajuan menjadi 'diterima'. Sertifikat PDF di-generate server via gofpdf"
+}
+
+// ============================================================
+// ABSENSI HARIAN
+// ============================================================
+
+Table absensi {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  pelaksanaan_id  uuid        [not null, ref: > pelaksanaan_magang.id]
+  tanggal         date        [not null]
+  jam_masuk       time
+  jam_keluar      time
+  keterangan      varchar(20) [default: "hadir", note: "hadir / izin / sakit / alpha"]
+  kegiatan        text        [note: "Deskripsi kegiatan hari ini"]
+  ttd_pembimbing  boolean     [default: false, note: "Pembimbing sudah TTD digital"]
+  approved_by     uuid        [ref: > users.id]
+  approved_at     timestamptz
+  catatan         text
+  created_at      timestamptz [default: `NOW()`]
+
+  indexes {
+    (pelaksanaan_id, tanggal) [unique, name: "idx_absensi_unik_per_hari"]
+  }
+
+  Note: "Peserta isi absensi harian self-service. 1 record per hari per peserta. Pembimbing TTD digital"
+}
+
+// ============================================================
+// CHAT HELPDESK
+// ============================================================
+
+Table chat_tiket {
+  id          uuid         [pk, default: `gen_random_uuid()`]
+  user_id     uuid         [not null, ref: > users.id, note: "Peserta pembuat tiket"]
+  nomor_tiket varchar(20)  [unique, not null, note: "Format: TKT-YYYYMMDD-NNNN"]
+  subjek      varchar(255)
+  status      status_tiket [default: "menunggu"]
+  assigned_to uuid         [ref: > users.id, note: "HRD yang handle tiket ini"]
+  created_at  timestamptz  [default: `NOW()`]
+  updated_at  timestamptz  [default: `NOW()`]
+
+  Note: "Sistem helpdesk berbasis tiket. Peserta buat tiket, HRD balas"
+}
+
+Table chat_pesan {
+  id          uuid        [pk, default: `gen_random_uuid()`]
+  tiket_id    uuid        [not null, ref: > chat_tiket.id]
+  sender_id   uuid        [not null, ref: > users.id]
+  pesan       text        [not null]
+  is_read     boolean     [default: false]
+  created_at  timestamptz [default: `NOW()`]
+
+  Note: "Bisa dikirim peserta maupun HRD/Admin"
+}
+
+Table chat_knowledge {
+  id          uuid        [pk, default: `gen_random_uuid()`]
+  pertanyaan  varchar(500) [not null]
+  jawaban     text        [not null]
+  urutan      integer     [default: 0]
+  is_active   boolean     [default: true]
+  created_at  timestamptz [default: `NOW()`]
+
+  Note: "FAQ/knowledge base yang dikelola admin. Tampil sebelum peserta buat tiket"
+}
+
+// ============================================================
+// NOTIFIKASI
+// ============================================================
+
+Table notifikasi {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  user_id       uuid        [not null, ref: > users.id]
+  judul         varchar(255) [not null]
+  pesan         text        [not null]
+  tipe          varchar(50) [note: "pengajuan / chat / absensi / sertifikat / pelaksanaan / nilai / dokumen / sistem"]
+  referensi_id  uuid        [note: "ID entitas terkait (pengajuan_id, tiket_id, dst)"]
+  is_read       boolean     [default: false]
+  created_at    timestamptz [default: `NOW()`]
+
+  Note: "Disimpan permanen. Push real-time via WebSocket jika user online. Badge = COUNT WHERE is_read=false"
+}
+
+// ============================================================
+// LANDING PAGE CMS
+// ============================================================
+
+Table landing_content {
+  id          uuid        [pk, default: `gen_random_uuid()`]
+  kunci       varchar(100) [unique, not null, note: "hero_title, syarat_umum, ketentuan_magang, dll"]
+  nilai       text
+  tipe        varchar(20) [default: "text", note: "text / html / json"]
+  updated_by  uuid        [ref: > users.id]
+  updated_at  timestamptz [default: `NOW()`]
+
+  Note: "CMS key-value untuk konten halaman publik. Admin edit via API"
+}
+
+Table faq {
+  id          uuid    [pk, default: `gen_random_uuid()`]
+  pertanyaan  text    [not null]
+  jawaban     text    [not null]
+  urutan      integer [default: 0]
+  is_active   boolean [default: true]
+  created_at  timestamptz [default: `NOW()`]
+
+  Note: "FAQ publik. Berbeda dengan chat_knowledge yang khusus helpdesk"
+}
