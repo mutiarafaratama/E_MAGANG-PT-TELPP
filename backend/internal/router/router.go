@@ -4,6 +4,7 @@ import (
         "net/http"
 
         "github.com/gin-gonic/gin"
+        "github.com/google/uuid"
         "github.com/telpp/emagang/internal/database"
         "github.com/telpp/emagang/internal/handler"
         "github.com/telpp/emagang/internal/middleware"
@@ -65,6 +66,38 @@ func Setup() *gin.Engine {
                 c.JSON(http.StatusOK, gin.H{"status": "ok", "app": "e-Magang TELPP"})
         })
 
+        // DEBUG: Cek dokumen di database (hapus setelah production)
+        r.GET("/api/debug/dokumen", func(c *gin.Context) {
+                rows, err := database.DB.Query(c.Request.Context(), "SELECT id, pengajuan_id, user_id, jenis, nama_file FROM dokumen LIMIT 20")
+                if err != nil {
+                        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                        return
+                }
+                defer rows.Close()
+
+                var docs []gin.H
+                for rows.Next() {
+                        var id, pengajuanID, userID uuid.UUID
+                        var jenis, namaFile string
+                        var pengajuanIDPtr *uuid.UUID
+
+                        if err := rows.Scan(&id, &pengajuanIDPtr, &userID, &jenis, &namaFile); err != nil {
+                                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                                return
+                        }
+
+                        docs = append(docs, gin.H{
+                                "id":           id,
+                                "pengajuan_id": pengajuanIDPtr,
+                                "user_id":      userID,
+                                "jenis":        jenis,
+                                "nama_file":    namaFile,
+                        })
+                }
+
+                c.JSON(http.StatusOK, gin.H{"data": docs, "count": len(docs)})
+        })
+
         // ============================================================
         // PUBLIC ROUTES (tanpa login)
         // ============================================================
@@ -91,6 +124,12 @@ func Setup() *gin.Engine {
         api := r.Group("/api")
         api.Use(middleware.AuthRequired())
         {
+                // ============================================================
+                // SETUP ROUTES MODULAR
+                // ============================================================
+                SetupPengajuanRoutes(api, pengajuanH)
+                SetupDokumenRoutes(api, dokumenH)
+
                 // Auth
                 api.GET("/auth/me", authH.Me)
                 api.POST("/auth/change-password", authH.ChangePassword)
@@ -104,13 +143,9 @@ func Setup() *gin.Engine {
                 // --------------------------------------------------------
                 // PESERTA ROUTES
                 // --------------------------------------------------------
-                peserta := api.Group("")
+                peserta := api.Group("/peserta")
                 peserta.Use(middleware.RoleRequired(models.RolePeserta))
                 {
-                        // Pengajuan magang
-                        peserta.POST("/pengajuan", pengajuanH.Submit)
-                        peserta.GET("/pengajuan/saya", pengajuanH.GetMy)
-
                         // Pelaksanaan
                         peserta.GET("/pelaksanaan/saya", pelaksanaanH.GetMy)
                         peserta.GET("/pelaksanaan/:id/sertifikat/download", pelaksanaanH.DownloadSertifikat)
@@ -132,24 +167,13 @@ func Setup() *gin.Engine {
                 api.GET("/chat/tiket/:id/pesan", chatH.GetPesan)
                 api.POST("/chat/tiket/:id/pesan", chatH.KirimPesan)
                 api.GET("/chat/knowledge", chatH.GetKnowledge)
-                api.GET("/dokumen/:id/download", dokumenH.Download)
-                api.GET("/pengajuan/:id/history", pengajuanH.GetHistory)
 
                 // --------------------------------------------------------
                 // HRD ROUTES
                 // --------------------------------------------------------
-                hrd := api.Group("")
+                hrd := api.Group("/hrd")
                 hrd.Use(middleware.RoleRequired(models.RoleHRD, models.RoleAdmin))
                 {
-                        // Pengajuan
-                        hrd.GET("/pengajuan", pengajuanH.GetAll)
-                        hrd.GET("/pengajuan/:id", pengajuanH.GetDetail)
-                        hrd.PATCH("/pengajuan/:id/status", pengajuanH.UpdateStatus)
-
-                        // Dokumen
-                        hrd.POST("/dokumen/upload", dokumenH.Upload)
-                        hrd.GET("/dokumen/pengajuan/:id", dokumenH.GetByPengajuan)
-
                         // Pelaksanaan
                         hrd.POST("/pelaksanaan/pengajuan/:pengajuan_id", pelaksanaanH.SetJadwal)
                         hrd.GET("/pelaksanaan", pelaksanaanH.GetAll)

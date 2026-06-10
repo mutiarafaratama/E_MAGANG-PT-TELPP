@@ -4,9 +4,7 @@
     <nav class="navbar">
       <div class="container navbar__inner">
         <a href="/" class="navbar__brand">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#48AF4A"/>
-          </svg>
+          <img src="/logotel.png" alt="PT TELPP" class="navbar__logo" />
           <span>e-Magang <strong>PT TELPP</strong></span>
         </a>
 
@@ -18,8 +16,8 @@
         </div>
 
         <div class="navbar__actions">
-          <button class="btn-ghost">Masuk</button>
-          <button class="btn-primary">Daftar Sekarang</button>
+          <router-link to="/login" class="btn-ghost">Masuk</router-link>
+          <router-link to="/register" class="btn-primary">Daftar Sekarang</router-link>
         </div>
       </div>
     </nav>
@@ -47,7 +45,7 @@
             </div>
           </div>
           <div class="hero__cta">
-            <button class="btn-primary btn-lg">Daftar Sekarang</button>
+            <router-link to="/register" class="btn-primary btn-lg">Daftar Sekarang</router-link>
             <button class="btn-outline-white btn-lg">Panduan Sistem</button>
           </div>
         </div>
@@ -216,7 +214,7 @@
         <h2>Siap Memulai Perjalananmu?</h2>
         <p>Bergabunglah bersama ratusan mahasiswa dan siswa SMK yang telah menjalani pengalaman magang berharga di PT TELPP.</p>
         <div class="cta-banner__btns">
-          <button class="btn-white">Daftar Gratis Sekarang</button>
+          <router-link to="/register" class="btn-white">Daftar Gratis Sekarang</router-link>
           <button class="btn-outline-white">Lihat Panduan</button>
         </div>
       </div>
@@ -226,6 +224,9 @@
     <footer class="footer">
       <div class="container footer__grid">
         <div>
+          <div class="footer__logo-wrap">
+            <img src="/logotel.png" alt="PT TELPP" class="footer__logo" />
+          </div>
           <div class="footer__brand">e-Magang PT TELPP</div>
           <p class="footer__desc">Portal resmi manajemen magang terpadu untuk talenta muda Indonesia.</p>
           <div class="footer__address">PT TanjungEnim Lestari Pulp and Paper<br />Muara Enim, Sumatera Selatan</div>
@@ -357,12 +358,14 @@ const footerCols = [
   background: #48AF4A; color: #fff; border: none; border-radius: 100px;
   padding: 10px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
   font-family: "Poppins", sans-serif; transition: opacity 0.15s;
+  text-decoration: none; display: inline-flex; align-items: center;
 }
 .btn-primary:hover { opacity: 0.9; }
 .btn-primary.btn-lg { padding: 13px 32px; font-size: 15px; }
 .btn-ghost {
   background: none; border: none; color: #48AF4A; font-size: 14px;
   font-weight: 600; cursor: pointer; font-family: "Poppins", sans-serif; padding: 8px 12px;
+  text-decoration: none; display: inline-flex; align-items: center;
 }
 .btn-outline {
   background: none; border: 2px solid #48AF4A; color: #48AF4A;
@@ -378,7 +381,8 @@ const footerCols = [
 .btn-white {
   background: #fff; color: #48AF4A; border: none; border-radius: 100px;
   padding: 13px 32px; font-size: 15px; font-weight: 700; cursor: pointer;
-  font-family: "Poppins", sans-serif;
+  font-family: "Poppins", sans-serif; text-decoration: none;
+  display: inline-flex; align-items: center;
 }
 
 /* ── HERO ── */
@@ -582,10 +586,28 @@ const footerCols = [
 .cta-banner__btns { display: flex; gap: 14px; justify-content: center; }
 
 /* ── FOOTER ── */
+.navbar__logo {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+  border-radius: 5px;
+  background: #fff;
+  padding: 2px 5px;
+}
+
 .footer { background: #061810; padding: 56px 0 0; }
 .footer__grid {
   display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
   gap: 48px; padding-bottom: 48px; border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.footer__logo-wrap { margin-bottom: 12px; }
+.footer__logo {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #fff;
+  padding: 4px 7px;
 }
 .footer__brand { font-size: 17px; font-weight: 800; color: #86efac; margin-bottom: 10px; }
 .footer__desc { font-size: 13px; color: rgba(255,255,255,0.5); line-height: 1.7; margin-bottom: 16px; }

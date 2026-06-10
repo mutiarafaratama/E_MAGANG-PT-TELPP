@@ -3,10 +3,7 @@ import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
-const rawPort = process.env.PORT ?? "5173";
-const port = Number(rawPort);
-if (Number.isNaN(port) || port <= 0) throw new Error(`Invalid PORT value: "${rawPort}"`);
-
+const port = Number(process.env.PORT ?? 5174);
 const basePath = process.env.BASE_PATH ?? "/";
 
 export default defineConfig({
@@ -27,6 +24,12 @@ export default defineConfig({
     strictPort: true,
     host: "0.0.0.0",
     allowedHosts: true,
+    proxy: {
+      "/api": {
+        target: "http://localhost:8080",
+        changeOrigin: true,
+      },
+    },
   },
   preview: {
     port,
