@@ -9,15 +9,17 @@ import (
 )
 
 type Config struct {
-	DatabaseURL   string
-	JWTSecret     string
-	JWTExpiry     string
-	RefreshExpiry string
-	Port          string
-	UploadDir     string
-	MaxUploadSize int64
-	AppEnv        string
-	FrontendURL   string
+	DatabaseURL              string
+	JWTSecret                string
+	JWTExpiry                string
+	RefreshExpiry            string
+	Port                     string
+	UploadDir                string
+	MaxUploadSize            int64
+	AppEnv                   string
+	FrontendURL              string
+	FirebaseProjectID        string
+	FirebaseServiceAccountJSON string
 }
 
 var App *Config
@@ -33,15 +35,17 @@ func Load() {
 	}
 
 	App = &Config{
-		DatabaseURL:   getEnv("DATABASE_URL", ""),
-		JWTSecret:     getEnv("JWT_SECRET", ""),
-		JWTExpiry:     getEnv("JWT_EXPIRY", "24h"),
-		RefreshExpiry: getEnv("REFRESH_EXPIRY", "168h"),
-		Port:          getEnv("PORT", "8080"),
-		UploadDir:     getEnv("UPLOAD_DIR", "./uploads"),
-		MaxUploadSize: maxSize,
-		AppEnv:        getEnv("APP_ENV", "development"),
-		FrontendURL:   getEnv("FRONTEND_URL", "http://localhost:5173"),
+		DatabaseURL:               getEnv("DATABASE_URL", ""),
+		JWTSecret:                 getEnv("JWT_SECRET", ""),
+		JWTExpiry:                 getEnv("JWT_EXPIRY", "24h"),
+		RefreshExpiry:             getEnv("REFRESH_EXPIRY", "168h"),
+		Port:                      getEnv("GO_PORT", "8080"),
+		UploadDir:                 getEnv("UPLOAD_DIR", "./uploads"),
+		MaxUploadSize:             maxSize,
+		AppEnv:                    getEnv("APP_ENV", "development"),
+		FrontendURL:               getEnv("FRONTEND_URL", "http://localhost:5173"),
+		FirebaseProjectID:         getEnv("FIREBASE_PROJECT_ID", ""),
+		FirebaseServiceAccountJSON: getEnv("FIREBASE_SERVICE_ACCOUNT_JSON", ""),
 	}
 
 	if App.DatabaseURL == "" {

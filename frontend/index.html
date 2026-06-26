@@ -5,13 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>e-Magang PT TELPP | Portal Magang Terintegrasi</title>
     <meta name="description" content="Platform resmi pendaftaran dan manajemen magang PT TanjungEnim Lestari Pulp and Paper. Proses transparan dari seleksi hingga sertifikasi." />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#16a34a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="e-Magang" />
+    <link rel="icon" type="image/svg+xml" href="/logotel.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/logotel.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/main.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then(() => console.log('[PWA] Service Worker terdaftar'))
+            .catch((e) => console.warn('[PWA] SW gagal:', e))
+        })
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data?.type === 'navigate' && event.data.route) {
+            window.location.href = event.data.route
+          }
+        })
+      }
+    </script>
   </body>
 </html>

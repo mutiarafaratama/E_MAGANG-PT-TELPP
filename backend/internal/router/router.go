@@ -1,15 +1,18 @@
 package router
 
 import (
+        "context"
         "net/http"
+        "time"
 
         "github.com/gin-gonic/gin"
-        "github.com/google/uuid"
+        "github.com/telpp/emagang/internal/config"
         "github.com/telpp/emagang/internal/database"
         "github.com/telpp/emagang/internal/handler"
         "github.com/telpp/emagang/internal/middleware"
         "github.com/telpp/emagang/internal/models"
         "github.com/telpp/emagang/internal/repository"
+        "github.com/telpp/emagang/internal/routes"
         "github.com/telpp/emagang/internal/service"
         ws "github.com/telpp/emagang/internal/websocket"
 )
@@ -17,205 +20,117 @@ import (
 func Setup() *gin.Engine {
         r := gin.Default()
 
-        // ============================================================
-        // MIDDLEWARE GLOBAL
-        // ============================================================
         r.Use(middleware.CORS())
-        r.MaxMultipartMemory = 110 << 20 // 110MB
-
-        // ============================================================
-        // INISIALISASI SEMUA LAYER
-        // ============================================================
+        r.MaxMultipartMemory = 110 << 20
 
         // Repositories
-        userRepo        := repository.NewUserRepository(database.DB)
-        pengajuanRepo   := repository.NewPengajuanRepository(database.DB)
-        dokumenRepo     := repository.NewDokumenRepository(database.DB)
-        pelaksanaanRepo := repository.NewPelaksanaanRepository(database.DB)
-        absensiRepo     := repository.NewAbsensiRepository(database.DB)
-        chatRepo        := repository.NewChatRepository(database.DB)
-        notifRepo       := repository.NewNotifikasiRepository(database.DB)
-        landingRepo     := repository.NewLandingRepository(database.DB)
+        userRepo         := repository.NewUserRepository(database.DB)
+        pengajuanRepo    := repository.NewPengajuanRepository(database.DB)
+        dokumenRepo      := repository.NewDokumenRepository(database.DB)
+        pelaksanaanRepo  := repository.NewPelaksanaanRepository(database.DB)
+        absensiRepo      := repository.NewAbsensiRepository(database.DB)
+        absensiConfigRepo := repository.NewAbsensiConfigRepository(database.DB)
+        izinSakitRepo    := repository.NewIzinSakitRepository(database.DB)
+        chatRepo         := repository.NewChatRepository(database.DB)
+        notifRepo        := repository.NewNotifikasiRepository(database.DB)
+        landingRepo      := repository.NewLandingRepository(database.DB)
+        divisiRepo       := repository.NewDivisiRepository(database.DB)
+        laporanRepo      := repository.NewLaporanRepository(database.DB)
+        penilaianRepo    := repository.NewPenilaianRepository(database.DB)
+        perpanjanganRepo := repository.NewPerpanjanganRepository(database.DB)
+        knowledgeRepo    := repository.NewKnowledgeRepository(database.DB)
 
-        // Set global DB pointer
         repository.SetDB(database.DB)
 
         // Services
         hub           := ws.GlobalHub
-        notifSvc      := service.NewNotifikasiService(notifRepo, hub)
+        fcmSvc        := service.NewFCMService(config.App.FirebaseProjectID, config.App.FirebaseServiceAccountJSON)
+        notifSvc      := service.NewNotifikasiService(notifRepo, hub, fcmSvc)
         authSvc       := service.NewAuthService(userRepo)
-        pengajuanSvc  := service.NewPengajuanService(pengajuanRepo, notifSvc, userRepo)
+        emailSvc      := service.NewEmailService()
+        pengajuanSvc  := service.NewPengajuanService(pengajuanRepo, notifSvc, userRepo, emailSvc, dokumenRepo)
         chatSvc       := service.NewChatService(chatRepo, notifSvc, userRepo, hub)
-        sertifikatSvc := service.NewSertifikatService(pelaksanaanRepo, pengajuanRepo, notifSvc)
+        nlpSvc        := service.NewNLPService(knowledgeRepo)
+        sertifikatSvc := service.NewSertifikatService(pelaksanaanRepo, pengajuanRepo, notifSvc, emailSvc)
+        cleanupSvc       := service.NewCleanupService(userRepo, emailSvc)
+        absensiReminderSvc := service.NewAbsensiReminderService(absensiRepo, absensiConfigRepo, notifSvc)
 
         // Handlers
-        authH        := handler.NewAuthHandler(authSvc)
-        pengajuanH   := handler.NewPengajuanHandler(pengajuanSvc)
-        dokumenH     := handler.NewDokumenHandler(dokumenRepo)
-        pelaksanaanH := handler.NewPelaksanaanHandler(pelaksanaanRepo, pengajuanRepo, sertifikatSvc)
-        absensiH     := handler.NewAbsensiHandler(absensiRepo, pelaksanaanRepo, pengajuanRepo)
-        chatH        := handler.NewChatHandler(chatSvc)
-        notifH       := handler.NewNotifikasiHandler(notifSvc, chatRepo)
-        landingH     := handler.NewLandingHandler(landingRepo)
-        adminH       := handler.NewAdminHandler(userRepo)
+        authH         := handler.NewAuthHandler(authSvc)
+        pengajuanH    := handler.NewPengajuanHandler(pengajuanSvc)
+        dokumenH      := handler.NewDokumenHandler(dokumenRepo, pengajuanRepo, notifSvc)
+        pelaksanaanH  := handler.NewPelaksanaanHandler(pelaksanaanRepo, pengajuanRepo, sertifikatSvc)
+        absensiH      := handler.NewAbsensiHandler(absensiRepo, pelaksanaanRepo, pengajuanRepo, absensiConfigRepo, divisiRepo)
+        absensiConfigH := handler.NewAbsensiConfigHandler(absensiConfigRepo)
+        izinSakitH    := handler.NewIzinSakitHandler(izinSakitRepo, pelaksanaanRepo)
+        chatH         := handler.NewChatHandler(chatSvc)
+        notifH        := handler.NewNotifikasiHandler(notifSvc, chatRepo)
+        landingH      := handler.NewLandingHandler(landingRepo)
+        adminH        := handler.NewAdminHandler(userRepo, dokumenRepo, emailSvc)
+        divisiH       := handler.NewDivisiHandler(divisiRepo)
+        laporanH      := handler.NewLaporanHandler(laporanRepo, pelaksanaanRepo)
+        penilaianH    := handler.NewPenilaianHandler(penilaianRepo)
+        perpanjanganH := handler.NewPerpanjanganHandler(perpanjanganRepo, pelaksanaanRepo, notifSvc, emailSvc)
+        badgeH        := handler.NewBadgeHandler()
+        knowledgeH    := handler.NewKnowledgeHandler(knowledgeRepo, nlpSvc)
 
-        // ============================================================
-        // HEALTH CHECK
-        // ============================================================
+        r.Static("/uploads", config.App.UploadDir)
+
         r.GET("/api/health", func(c *gin.Context) {
                 c.JSON(http.StatusOK, gin.H{"status": "ok", "app": "e-Magang TELPP"})
         })
 
-        // DEBUG: Cek dokumen di database (hapus setelah production)
-        r.GET("/api/debug/dokumen", func(c *gin.Context) {
-                rows, err := database.DB.Query(c.Request.Context(), "SELECT id, pengajuan_id, user_id, jenis, nama_file FROM dokumen LIMIT 20")
-                if err != nil {
-                        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-                        return
-                }
-                defer rows.Close()
-
-                var docs []gin.H
-                for rows.Next() {
-                        var id, pengajuanID, userID uuid.UUID
-                        var jenis, namaFile string
-                        var pengajuanIDPtr *uuid.UUID
-
-                        if err := rows.Scan(&id, &pengajuanIDPtr, &userID, &jenis, &namaFile); err != nil {
-                                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-                                return
-                        }
-
-                        docs = append(docs, gin.H{
-                                "id":           id,
-                                "pengajuan_id": pengajuanIDPtr,
-                                "user_id":      userID,
-                                "jenis":        jenis,
-                                "nama_file":    namaFile,
-                        })
-                }
-
-                c.JSON(http.StatusOK, gin.H{"data": docs, "count": len(docs)})
-        })
-
-        // ============================================================
-        // PUBLIC ROUTES (tanpa login)
-        // ============================================================
-        public := r.Group("/api")
-        {
-                // Auth
-                public.POST("/auth/register", authH.Register)
-                public.POST("/auth/login", authH.Login)
-
-                // Landing page (publik)
-                public.GET("/landing/content", landingH.GetContent)
-                public.GET("/landing/faq", landingH.GetFAQ)
-                public.GET("/landing/periode", landingH.GetPeriodeAktif)
-
-                // WebSocket — autentikasi ditangani sendiri via query param ?token=
-                // Browser JS tidak bisa kirim custom header saat upgrade WS
-                // Contoh: new WebSocket("ws://localhost:8080/api/ws?token=<jwt>")
-                public.GET("/ws", ws.ServeWS(hub))
-        }
-
-        // ============================================================
-        // PROTECTED ROUTES (wajib login)
-        // ============================================================
-        api := r.Group("/api")
+        // Route groups
+        public  := r.Group("/api")
+        api     := r.Group("/api")
         api.Use(middleware.AuthRequired())
-        {
-                // ============================================================
-                // SETUP ROUTES MODULAR
-                // ============================================================
-                SetupPengajuanRoutes(api, pengajuanH)
-                SetupDokumenRoutes(api, dokumenH)
+        peserta := api.Group("")
+        peserta.Use(middleware.RoleRequired(models.RolePeserta))
+        hrd := api.Group("")
+        hrd.Use(middleware.RoleRequired(models.RoleHRD, models.RoleAdmin))
+        admin := api.Group("/admin")
+        admin.Use(middleware.AuthRequired(), middleware.RoleRequired(models.RoleAdmin))
 
-                // Auth
-                api.GET("/auth/me", authH.Me)
-                api.POST("/auth/change-password", authH.ChangePassword)
+        // WebSocket
+        public.GET("/ws", ws.ServeWS(hub))
 
-                // Notifikasi
-                api.GET("/notifikasi", notifH.GetAll)
-                api.PATCH("/notifikasi/:id/read", notifH.MarkRead)
-                api.PATCH("/notifikasi/read-all", notifH.MarkAllRead)
-                api.GET("/notifikasi/badge", notifH.GetBadge)
+        // Register routes
+        routes.RegisterAuthRoutes(public, api, authH)
+        routes.RegisterPengajuanRoutes(public, peserta, api, hrd, pengajuanH)
+        routes.RegisterDokumenRoutes(public, peserta, api, hrd, dokumenH)
+        routes.RegisterPelaksanaanRoutes(peserta, hrd, api,pelaksanaanH)
+        routes.RegisterAbsensiRoutes(peserta, hrd, absensiH)
+        routes.RegisterAbsensiConfigRoutes(api, admin, absensiConfigH)
+        routes.RegisterIzinSakitRoutes(peserta, hrd, izinSakitH)
+        routes.RegisterChatRoutes(peserta, api, hrd, chatH)
+        routes.RegisterNotifikasiRoutes(api, notifH)
+        routes.RegisterLandingRoutes(public, hrd, admin, landingH)
+        routes.RegisterAdminRoutes(hrd, admin, adminH, dokumenH)
+        routes.RegisterDivisiRoutes(api, admin, divisiH)
+        routes.RegisterLaporanRoutes(peserta, hrd, api, laporanH)
+        routes.RegisterPenilaianRoutes(api, hrd, penilaianH)
+        routes.RegisterPerpanjanganRoutes(peserta, hrd, perpanjanganH)
+        routes.RegisterBadgeRoutes(peserta, hrd, badgeH)
+        routes.RegisterKnowledgeRoutes(public, admin, knowledgeH)
 
-                // --------------------------------------------------------
-                // PESERTA ROUTES
-                // --------------------------------------------------------
-                peserta := api.Group("/peserta")
-                peserta.Use(middleware.RoleRequired(models.RolePeserta))
-                {
-                        // Pelaksanaan
-                        peserta.GET("/pelaksanaan/saya", pelaksanaanH.GetMy)
-                        peserta.GET("/pelaksanaan/:id/sertifikat/download", pelaksanaanH.DownloadSertifikat)
-
-                        // Absensi
-                        peserta.POST("/absensi/checkin", absensiH.CheckIn)
-                        peserta.PATCH("/absensi/checkout", absensiH.CheckOut)
-                        peserta.GET("/absensi/saya", absensiH.GetMy)
-                        peserta.GET("/absensi/saya/pdf", absensiH.DownloadPDF)
-
-                        // Chat (peserta buat tiket)
-                        peserta.POST("/chat/tiket", chatH.BuatTiket)
-                        peserta.GET("/chat/tiket/saya", chatH.GetTiketSaya)
+        // Auto-update status pelaksanaan setiap jam
+        go func() {
+                pelaksanaanRepo.AutoUpdateStatuses(context.Background())
+                ticker := time.NewTicker(1 * time.Hour)
+                defer ticker.Stop()
+                for range ticker.C {
+                        pelaksanaanRepo.AutoUpdateStatuses(context.Background())
                 }
+        }()
 
-                // --------------------------------------------------------
-                // SHARED: PESERTA + HRD + ADMIN
-                // --------------------------------------------------------
-                api.GET("/chat/tiket/:id/pesan", chatH.GetPesan)
-                api.POST("/chat/tiket/:id/pesan", chatH.KirimPesan)
-                api.GET("/chat/knowledge", chatH.GetKnowledge)
+        // Timer hangus tiket — cek tiap 15 menit
+        chatSvc.StartTimerGoroutine(context.Background())
 
-                // --------------------------------------------------------
-                // HRD ROUTES
-                // --------------------------------------------------------
-                hrd := api.Group("/hrd")
-                hrd.Use(middleware.RoleRequired(models.RoleHRD, models.RoleAdmin))
-                {
-                        // Pelaksanaan
-                        hrd.POST("/pelaksanaan/pengajuan/:pengajuan_id", pelaksanaanH.SetJadwal)
-                        hrd.GET("/pelaksanaan", pelaksanaanH.GetAll)
-                        hrd.PATCH("/pelaksanaan/:id/nilai", pelaksanaanH.SetNilai)
-                        hrd.POST("/pelaksanaan/:id/sertifikat", pelaksanaanH.GenerateSertifikat)
+        // Hapus otomatis akun peserta yang sudah selesai magang > 30 hari
+        cleanupSvc.Start(context.Background())
 
-                        // Absensi
-                        hrd.GET("/absensi/pelaksanaan/:id", absensiH.GetByPelaksanaan)
-                        hrd.PATCH("/absensi/:id/approve", absensiH.Approve)
-
-                        // Chat management
-                        hrd.GET("/chat/tiket", chatH.GetAllTiket)
-                        hrd.PATCH("/chat/tiket/:id/status", chatH.UpdateStatus)
-                        hrd.POST("/chat/knowledge", chatH.UpsertKnowledge)
-
-                        // Landing page management
-                        hrd.PUT("/landing/content", landingH.UpdateContent)
-                        hrd.GET("/landing/faq/all", landingH.GetFAQAll)
-                        hrd.POST("/landing/faq", landingH.UpsertFAQ)
-                        hrd.DELETE("/landing/faq/:id", landingH.DeleteFAQ)
-
-                        // HRD list (untuk assign)
-                        hrd.GET("/admin/hrd-list", adminH.GetHRDList)
-                }
-
-                // --------------------------------------------------------
-                // ADMIN ONLY ROUTES
-                // --------------------------------------------------------
-                admin := api.Group("/admin")
-                admin.Use(middleware.RoleRequired(models.RoleAdmin))
-                {
-                        admin.GET("/stats", adminH.GetStats)
-                        admin.GET("/users", adminH.GetUsers)
-                        admin.POST("/users", adminH.CreateUser)
-                        admin.PATCH("/users/:id/toggle", adminH.ToggleUser)
-
-                        // Periode magang (hanya admin)
-                        admin.GET("/periode", landingH.GetAllPeriode)
-                        admin.POST("/periode", landingH.CreatePeriode)
-                        admin.PATCH("/periode/:id/aktif", landingH.SetPeriodeAktif)
-                }
-        }
+        // Reminder absen masuk & pulang via push notif (cek tiap menit, WIB)
+        absensiReminderSvc.Start(context.Background())
 
         return r
 }

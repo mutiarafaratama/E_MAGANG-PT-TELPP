@@ -20,22 +20,100 @@ type SertifikatService struct {
         pelaksanaanRepo *repository.PelaksanaanRepository
         pengajuanRepo   *repository.PengajuanRepository
         notifSvc        *NotifikasiService
+        emailSvc        *EmailService
 }
 
 func NewSertifikatService(
         pelaksanaanRepo *repository.PelaksanaanRepository,
         pengajuanRepo *repository.PengajuanRepository,
         notifSvc *NotifikasiService,
+        emailSvc *EmailService,
 ) *SertifikatService {
         return &SertifikatService{
                 pelaksanaanRepo: pelaksanaanRepo,
                 pengajuanRepo:   pengajuanRepo,
                 notifSvc:        notifSvc,
+                emailSvc:        emailSvc,
         }
 }
 
+// Upload menyimpan file PDF sertifikat yang di-upload HRD, lalu kirim notif + email ke peserta.
+func (s *SertifikatService) Upload(ctx context.Context, pelaksanaanID uuid.UUID, fileData []byte) error {
+        // Ambil data pelaksanaan + user sekaligus
+        var (
+                userID         uuid.UUID
+                userEmail      string
+                userName       string
+                status         string
+                nilai          *float64
+                divisi         string
+                pembimbing     string
+                tanggalMulai   time.Time
+                tanggalSelesai time.Time
+        )
+        err := database.DB.QueryRow(ctx, `
+                SELECT pm.user_id, u.email, u.nama_lengkap,
+                       pm.status, pm.nilai,
+                       COALESCE(pm.divisi, '') AS divisi,
+                       COALESCE(pm.pembimbing, u2.nama_lengkap, '') AS pembimbing,
+                       pm.tanggal_mulai, pm.tanggal_selesai
+                FROM pelaksanaan_magang pm
+                JOIN users u ON u.id = pm.user_id
+                LEFT JOIN users u2 ON u2.id = pm.pembimbing_id
+                WHERE pm.id = $1`, pelaksanaanID).
+                Scan(&userID, &userEmail, &userName,
+                        &status, &nilai,
+                        &divisi, &pembimbing,
+                        &tanggalMulai, &tanggalSelesai)
+        if err != nil {
+                return errors.New("data pelaksanaan tidak ditemukan")
+        }
+
+        if status != string(models.StatusPenilaian) && status != string(models.StatusSelesai) {
+                return errors.New("peserta belum pada tahap penilaian atau selesai")
+        }
+
+        // Simpan file ke disk
+        dirPath := filepath.Join(config.App.UploadDir, "sertifikat")
+        if err := os.MkdirAll(dirPath, 0755); err != nil {
+                return fmt.Errorf("gagal membuat folder sertifikat: %w", err)
+        }
+        filename := fmt.Sprintf("sertifikat_%s_%s.pdf",
+                sanitizeFilename(userName),
+                time.Now().Format("20060102150405"))
+        savePath := filepath.Join(dirPath, filename)
+
+        if err := os.WriteFile(savePath, fileData, 0644); err != nil {
+                return fmt.Errorf("gagal menyimpan file: %w", err)
+        }
+
+        // Update DB
+        if err := s.pelaksanaanRepo.SetSertifikat(ctx, pelaksanaanID, savePath); err != nil {
+                os.Remove(savePath)
+                return err
+        }
+
+        // Notif in-app ke peserta
+        s.notifSvc.KirimKeUser(ctx, userID, models.RolePeserta,
+                "Sertifikat Magang Siap",
+                "Sertifikat magang Anda telah diterbitkan dan siap diunduh",
+                "sertifikat", &pelaksanaanID)
+
+        // Kirim email async
+        periode := fmt.Sprintf("%s s/d %s",
+                tanggalMulai.Format("02 Jan 2006"),
+                tanggalSelesai.Format("02 Jan 2006"))
+        nilaiStr := "—"
+        if nilai != nil {
+                nilaiStr = fmt.Sprintf("%.1f", *nilai)
+        }
+        go s.emailSvc.KirimSertifikat(userEmail, userName, divisi, pembimbing, periode, nilaiStr, savePath)
+
+        return nil
+}
+
+// Generate membuat PDF sertifikat otomatis via gofpdf (tetap tersedia untuk keperluan mendatang).
 func (s *SertifikatService) Generate(ctx context.Context, pelaksanaanID uuid.UUID) (string, error) {
-        // Ambil data pelaksanaan langsung dari DB
         var p models.PelaksanaanMagang
         err := database.DB.QueryRow(ctx, `
                 SELECT id, pengajuan_id, user_id, periode_id, tanggal_mulai, tanggal_selesai,
@@ -52,7 +130,6 @@ func (s *SertifikatService) Generate(ctx context.Context, pelaksanaanID uuid.UUI
         if p.Status != models.StatusPenilaian && p.Status != models.StatusSelesai {
                 return "", errors.New("peserta belum mendapatkan penilaian")
         }
-
         if p.Nilai == nil {
                 return "", errors.New("nilai belum diisi oleh pembimbing")
         }
@@ -62,7 +139,6 @@ func (s *SertifikatService) Generate(ctx context.Context, pelaksanaanID uuid.UUI
                 return "", err
         }
 
-        // Generate PDF
         dirPath := filepath.Join(config.App.UploadDir, "sertifikat")
         if err := os.MkdirAll(dirPath, 0755); err != nil {
                 return "", fmt.Errorf("gagal membuat folder sertifikat: %w", err)
@@ -77,16 +153,18 @@ func (s *SertifikatService) Generate(ctx context.Context, pelaksanaanID uuid.UUI
                 return "", fmt.Errorf("gagal generate PDF: %w", err)
         }
 
-        // Update path di DB
         if err := s.pelaksanaanRepo.SetSertifikat(ctx, pelaksanaanID, savePath); err != nil {
                 return "", err
         }
 
-        // Notif ke peserta — penerima sertifikat selalu peserta
-        s.notifSvc.KirimKeUser(ctx, pengajuan.UserID, models.RolePeserta,
+        var recipientUID uuid.UUID
+        if pengajuan.UserID != nil {
+                recipientUID = *pengajuan.UserID
+        }
+        s.notifSvc.KirimKeUser(ctx, recipientUID, models.RolePeserta,
                 "Sertifikat Magang Siap",
                 "Sertifikat magang Anda telah tersedia dan siap untuk didownload",
-                string(models.NotifSertifikat), &pelaksanaanID)
+                "sertifikat", &pelaksanaanID)
 
         return savePath, nil
 }
@@ -95,18 +173,15 @@ func generateSertifikatPDF(p *models.PengajuanMagang, pel *models.PelaksanaanMag
         pdf := gofpdf.New("L", "mm", "A4", "")
         pdf.AddPage()
 
-        // Background
         pdf.SetFillColor(255, 255, 255)
         pdf.Rect(0, 0, 297, 210, "F")
 
-        // Border hijau
         pdf.SetDrawColor(0, 128, 0)
         pdf.SetLineWidth(3)
         pdf.Rect(8, 8, 281, 194, "D")
         pdf.SetLineWidth(1)
         pdf.Rect(11, 11, 275, 188, "D")
 
-        // Header bar hijau
         pdf.SetFillColor(0, 100, 0)
         pdf.Rect(8, 8, 281, 32, "F")
 
@@ -119,43 +194,37 @@ func generateSertifikatPDF(p *models.PengajuanMagang, pel *models.PelaksanaanMag
         pdf.SetXY(8, 25)
         pdf.CellFormat(281, 7, "Jl. Raya Muara Enim, Sumatera Selatan  |  Telp: (0734) 123-456  |  www.telpp.co.id", "", 0, "C", false, 0, "")
 
-        // Judul sertifikat
         pdf.SetTextColor(0, 80, 0)
         pdf.SetFont("Helvetica", "B", 30)
         pdf.SetXY(8, 48)
         pdf.CellFormat(281, 14, "SERTIFIKAT MAGANG", "", 0, "C", false, 0, "")
 
-        // Nomor
         pdf.SetFont("Helvetica", "", 10)
         pdf.SetTextColor(120, 120, 120)
         nomor := fmt.Sprintf("No. SRTF/TELPP/%s/%04d", time.Now().Format("2006"), time.Now().UnixNano()%9999+1)
         pdf.SetXY(8, 63)
         pdf.CellFormat(281, 7, nomor, "", 0, "C", false, 0, "")
 
-        // Teks pengantar
         pdf.SetTextColor(60, 60, 60)
         pdf.SetFont("Helvetica", "", 12)
         pdf.SetXY(30, 74)
         pdf.CellFormat(237, 7, "Dengan ini menerangkan bahwa:", "", 0, "C", false, 0, "")
 
-        // Nama peserta besar
         pdf.SetFont("Helvetica", "B", 24)
         pdf.SetTextColor(0, 100, 0)
         pdf.SetXY(8, 84)
         pdf.CellFormat(281, 12, p.NamaLengkap, "", 0, "C", false, 0, "")
 
-        // Garis bawah nama
         pdf.SetDrawColor(0, 128, 0)
         pdf.SetLineWidth(0.8)
         pdf.Line(70, 98, 227, 98)
 
-        // Detail dalam 2 kolom
         pdf.SetFont("Helvetica", "", 11)
         pdf.SetTextColor(50, 50, 50)
 
         divisi := "Umum"
-        if pel.Divisi != nil {
-                divisi = *pel.Divisi
+        if pel.Divisi != "" {
+                divisi = pel.Divisi
         }
 
         leftDetails := [][]string{
@@ -190,13 +259,11 @@ func generateSertifikatPDF(p *models.PengajuanMagang, pel *models.PelaksanaanMag
                 yPos += 8
         }
 
-        // Kalimat penutup
         pdf.SetFont("Helvetica", "I", 11)
         pdf.SetTextColor(60, 60, 60)
         pdf.SetXY(20, yPos+4)
         pdf.CellFormat(257, 7, "Telah menyelesaikan Program Magang dengan baik dan memuaskan.", "", 0, "C", false, 0, "")
 
-        // Tanda tangan
         tanggal := time.Now().Format("02 Januari 2006")
         pdf.SetFont("Helvetica", "", 10)
         pdf.SetTextColor(50, 50, 50)
@@ -212,7 +279,6 @@ func generateSertifikatPDF(p *models.PengajuanMagang, pel *models.PelaksanaanMag
         pdf.SetXY(190, 195)
         pdf.CellFormat(80, 6, "PT TanjungEnim Lestari", "", 0, "C", false, 0, "")
 
-        // QR Code area (placeholder)
         pdf.SetDrawColor(200, 200, 200)
         pdf.SetLineWidth(0.3)
         pdf.Rect(20, 168, 22, 22, "D")

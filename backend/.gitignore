@@ -8,3 +8,4 @@ uploads/
 *.test
 *.out
 vendor/
+serviceAccountKey.json

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tabel Pengujian Black Box — e-Magang TELPP</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Times New Roman", Times, serif;
+    font-size: 11px;
+    background: #fff;
+    color: #000;
+    padding: 36px 40px;
+  }
+  .header { text-align: center; margin-bottom: 24px; }
+  .header h2 { font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+  .header h3 { font-size: 12px; font-weight: bold; text-transform: uppercase; margin-bottom: 3px; }
+  .header p  { font-size: 11px; font-weight: bold; }
+
+  table { width: 100%; border-collapse: collapse; border: 1.5px solid #000; font-size: 11px; }
+  th, td { border: 1px solid #000; padding: 5px 7px; vertical-align: top; }
+  thead th { text-align: center; font-weight: bold; background: #fff; }
+  tbody td { background: #fff; }
+  td.center { text-align: center; }
+  td.nowrap { white-space: nowrap; }
+  td.bold   { font-weight: bold; white-space: nowrap; }
+
+  .keterangan { margin-top: 16px; font-size: 11px; }
+  .keterangan p.label { font-weight: bold; margin-bottom: 5px; }
+  .keterangan table { border: none; width: auto; }
+  .keterangan td { border: none; padding: 1px 4px 1px 0; }
+
+  .ringkasan { margin-top: 16px; font-size: 11px; }
+  .ringkasan p.label { font-weight: bold; margin-bottom: 5px; }
+  .ringkasan table { border: 1px solid #000; width: auto; }
+  .ringkasan th, .ringkasan td { border: 1px solid #000; padding: 4px 18px; text-align: center; }
+
+  .catatan { margin-top: 14px; border-top: 1px solid #000; padding-top: 10px; font-size: 11px; }
+  .catatan p.label { font-weight: bold; margin-bottom: 4px; }
+
+  .pengesahan { margin-top: 30px; font-size: 11px; }
+  .pengesahan table { width: 100%; border-collapse: collapse; }
+  .pengesahan td { text-align: center; padding-top: 8px; border: none; }
+  .ttd-line { display: inline-block; min-width: 160px; border-top: 1px solid #000; margin-top: 48px; padding-top: 3px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h2>Pengujian Black Box Testing</h2>
+  <h3>Sistem Informasi Manajemen Magang</h3>
+  <p>PT Tanjungenim Lestari Pulp and Paper (PT TELPP)</p>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:30px">No</th>
+      <th style="width:52px">ID Uji</th>
+      <th style="width:160px">Fitur / Modul</th>
+      <th>Skenario Pengujian</th>
+      <th>Data Input / Kondisi Uji</th>
+      <th>Hasil yang Diharapkan</th>
+      <th style="width:70px">Hasil Pengujian</th>
+      <th style="width:70px">Keterangan</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="center">1</td><td class="center nowrap">TC-01</td><td class="bold">Login Pengguna</td>
+      <td>Memasukkan email dan password yang valid sesuai role (admin, HRD, peserta)</td>
+      <td>Email: user@telpp.co.id<br>Password: Admin@12345<br>Role: Admin</td>
+      <td>Sistem berhasil melakukan autentikasi, token JWT diterbitkan, dan pengguna diarahkan ke dashboard sesuai role</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">2</td><td class="center nowrap">TC-02</td><td class="bold">Login Pengguna</td>
+      <td>Memasukkan email atau password yang salah / tidak terdaftar</td>
+      <td>Email: salah@email.com<br>Password: salahpassword</td>
+      <td>Sistem menampilkan pesan kesalahan dan tidak memberikan akses masuk</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">3</td><td class="center nowrap">TC-03</td><td class="bold">Pendaftaran Magang (Multi-step Form)</td>
+      <td>Mengisi formulir pendaftaran multi-langkah dan mengunggah berkas persyaratan</td>
+      <td>Data pribadi, institusi, divisi yang dipilih, serta berkas (KTP, surat pengantar, dll.)</td>
+      <td>Data tersimpan ke database, status pendaftaran menjadi 'menunggu verifikasi', notifikasi terkirim ke HRD</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">4</td><td class="center nowrap">TC-04</td><td class="bold">Pendaftaran Magang (Multi-step Form)</td>
+      <td>Mengirim formulir dengan kolom wajib yang tidak diisi</td>
+      <td>Kolom nama, institusi, atau divisi dikosongkan</td>
+      <td>Sistem menampilkan pesan validasi dan mencegah pengiriman formulir</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">5</td><td class="center nowrap">TC-05</td><td class="bold">Verifikasi Berkas (HRD)</td>
+      <td>HRD menyetujui berkas pendaftaran peserta magang</td>
+      <td>HRD menekan tombol 'Setujui' pada data pendaftaran peserta</td>
+      <td>Status pendaftaran berubah menjadi 'diterima', surat balasan diterbitkan, peserta menerima notifikasi persetujuan</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">6</td><td class="center nowrap">TC-06</td><td class="bold">Verifikasi Berkas (HRD)</td>
+      <td>HRD menolak berkas pendaftaran peserta dengan alasan</td>
+      <td>HRD menekan tombol 'Tolak' disertai alasan penolakan</td>
+      <td>Status pendaftaran berubah menjadi 'ditolak', peserta menerima notifikasi beserta alasan penolakan</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">7</td><td class="center nowrap">TC-07</td><td class="bold">Absensi Harian</td>
+      <td>Peserta melakukan check-in absensi masuk dengan validasi lokasi (geofencing)</td>
+      <td>Peserta menekan tombol 'Absen Masuk' saat berada di dalam area PT TELPP</td>
+      <td>Data absensi masuk tersimpan beserta koordinat GPS dan waktu, status absensi hari itu menjadi 'hadir masuk'</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">8</td><td class="center nowrap">TC-08</td><td class="bold">Absensi Harian</td>
+      <td>Peserta melakukan check-out absensi pulang</td>
+      <td>Peserta menekan tombol 'Absen Pulang' pada akhir jam kerja</td>
+      <td>Data absensi pulang tersimpan beserta koordinat GPS dan waktu, status absensi hari itu menjadi 'lengkap'</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">9</td><td class="center nowrap">TC-09</td><td class="bold">Absensi Harian</td>
+      <td>Peserta mengajukan izin atau sakit pada hari yang bersangkutan</td>
+      <td>Peserta memilih status 'Izin' atau 'Sakit' dan mengunggah bukti pendukung</td>
+      <td>Data izin/sakit tersimpan, status absensi hari itu tercatat sebagai 'izin' atau 'sakit'</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">10</td><td class="center nowrap">TC-10</td><td class="bold">Rekap Absensi PDF</td>
+      <td>Peserta atau HRD mengunduh rekap absensi dalam format PDF</td>
+      <td>Pengguna menekan tombol 'Unduh Rekap PDF' pada halaman rekap absensi</td>
+      <td>File PDF berhasil dibuat dan diunduh berisi data absensi lengkap; kolom tanda tangan digital pembimbing belum tersedia pada versi ini</td>
+      <td class="center">Sebagian</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">11</td><td class="center nowrap">TC-11</td><td class="bold">Laporan Magang</td>
+      <td>Peserta mengunggah file laporan kegiatan magang</td>
+      <td>Peserta memilih file PDF laporan dan menekan tombol 'Upload Laporan'</td>
+      <td>File laporan tersimpan di server, data laporan tercatat di database, HRD dapat mengunduh dan memberikan review</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">12</td><td class="center nowrap">TC-12</td><td class="bold">Laporan Magang</td>
+      <td>HRD memberikan review dan catatan pada laporan peserta</td>
+      <td>HRD mengisi form review dan menekan 'Simpan Review'</td>
+      <td>Status laporan diperbarui, catatan review tersimpan, peserta menerima notifikasi bahwa laporannya telah direview</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">13</td><td class="center nowrap">TC-13</td><td class="bold">Penilaian Akhir</td>
+      <td>HRD mengisi nilai akhir peserta magang berdasarkan kriteria penilaian</td>
+      <td>HRD mengisi komponen nilai (kedisiplinan, kinerja, sikap, dll.) dan menyimpan penilaian</td>
+      <td>Data nilai tersimpan, nilai akhir dihitung secara otomatis, peserta dapat melihat hasil penilaian</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">14</td><td class="center nowrap">TC-14</td><td class="bold">Sertifikat Magang (PDF)</td>
+      <td>Sistem meng-generate sertifikat otomatis setelah penilaian selesai dan peserta mengunduhnya</td>
+      <td>Peserta menekan tombol 'Unduh Sertifikat' setelah status magang selesai</td>
+      <td>File PDF sertifikat berhasil di-generate berisi nama peserta, divisi, periode, dan nilai; berkas dapat diunduh</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">15</td><td class="center nowrap">TC-15</td><td class="bold">Chat Helpdesk (Tiket)</td>
+      <td>Peserta membuat tiket pertanyaan baru ke HRD melalui fitur helpdesk</td>
+      <td>Peserta mengisi judul dan isi pertanyaan, lalu menekan 'Kirim Tiket'</td>
+      <td>Tiket tersimpan dengan status 'open', HRD menerima notifikasi ada tiket baru masuk</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">16</td><td class="center nowrap">TC-16</td><td class="bold">Chat Helpdesk (Tiket)</td>
+      <td>HRD membalas tiket pertanyaan dari peserta</td>
+      <td>HRD mengetik balasan dan menekan tombol 'Balas'</td>
+      <td>Balasan tersimpan, peserta menerima notifikasi balasan, percakapan tampil di halaman detail tiket secara real-time</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">17</td><td class="center nowrap">TC-17</td><td class="bold">Notifikasi Real-time</td>
+      <td>Sistem mengirimkan notifikasi in-app melalui WebSocket saat ada aktivitas terkait</td>
+      <td>HRD menyetujui pendaftaran peserta / membalas tiket</td>
+      <td>Notifikasi muncul secara real-time di badge dan panel notifikasi pengguna tanpa perlu refresh halaman</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">18</td><td class="center nowrap">TC-18</td><td class="bold">Notifikasi Push (FCM)</td>
+      <td>Sistem mengirimkan push notification ke perangkat pengguna melalui Firebase Cloud Messaging</td>
+      <td>Pengguna memberi izin notifikasi, FCM token tersimpan; terjadi event penting (approval, pesan baru)</td>
+      <td>Push notification diterima di perangkat meskipun tab browser tidak aktif, berisi judul dan isi notifikasi yang sesuai</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">19</td><td class="center nowrap">TC-19</td><td class="bold">Perpanjangan Magang</td>
+      <td>Peserta mengajukan perpanjangan masa magang sebelum tanggal selesai</td>
+      <td>Peserta mengisi formulir perpanjangan dengan tanggal selesai baru dan alasan</td>
+      <td>Pengajuan tersimpan dengan status 'menunggu', HRD menerima notifikasi dan dapat menyetujui atau menolak</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">20</td><td class="center nowrap">TC-20</td><td class="bold">Chatbot Knowledge Base</td>
+      <td>Pengguna mengajukan pertanyaan ke chatbot terkait informasi magang</td>
+      <td>Pengguna mengetik pertanyaan seperti 'Apa syarat magang di TELPP?'</td>
+      <td>Sistem mencocokkan pertanyaan dengan basis pengetahuan (NLP) dan menampilkan jawaban yang relevan</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">21</td><td class="center nowrap">TC-21</td><td class="bold">Manajemen Pengguna (Admin)</td>
+      <td>Admin membuat akun HRD baru melalui panel administrasi</td>
+      <td>Admin mengisi nama, email, dan password akun HRD baru</td>
+      <td>Akun HRD berhasil dibuat, data tersimpan di database, akun dapat digunakan untuk login</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">22</td><td class="center nowrap">TC-22</td><td class="bold">Manajemen Divisi (Admin)</td>
+      <td>Admin menambahkan divisi baru dengan konfigurasi geofencing</td>
+      <td>Admin mengisi nama divisi, koordinat pusat, dan radius geofencing (meter)</td>
+      <td>Divisi baru tersimpan dan tersedia sebagai pilihan pada formulir pendaftaran peserta</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">23</td><td class="center nowrap">TC-23</td><td class="bold">Manajemen Periode (Admin)</td>
+      <td>Admin menetapkan periode magang aktif beserta tanggal mulai dan selesai</td>
+      <td>Admin mengisi nama periode, tanggal mulai, dan tanggal selesai, lalu mengaktifkan periode</td>
+      <td>Periode tersimpan dan ditampilkan di halaman publik landing page sebagai jadwal penerimaan magang</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">24</td><td class="center nowrap">TC-24</td><td class="bold">Dashboard Statistik (Admin)</td>
+      <td>Admin melihat statistik keseluruhan sistem magang pada dashboard</td>
+      <td>Admin mengakses halaman dashboard</td>
+      <td>Sistem menampilkan data statistik yang akurat: total peserta, peserta aktif, jumlah pendaftaran per periode, dan grafik tren</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+    <tr>
+      <td class="center">25</td><td class="center nowrap">TC-25</td><td class="bold">Landing Page CMS</td>
+      <td>Admin memperbarui konten landing page (hero, FAQ, alur magang)</td>
+      <td>Admin mengubah teks hero, menambahkan FAQ baru, mengupload gambar alur</td>
+      <td>Perubahan tersimpan dan langsung tampil di halaman publik landing page tanpa perlu deploy ulang</td>
+      <td class="center">Sesuai</td><td class="center">Valid</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="keterangan">
+  <p class="label">Keterangan:</p>
+  <table>
+    <tr><td><strong>Valid</strong></td><td>: Hasil pengujian sesuai dengan hasil yang diharapkan</td></tr>
+    <tr><td><strong>Tidak Valid</strong></td><td>: Hasil pengujian tidak sesuai dengan hasil yang diharapkan</td></tr>
+    <tr><td><strong>Sebagian</strong></td><td>: Hasil pengujian sesuai sebagian; fitur berfungsi namun terdapat komponen yang belum diimplementasikan</td></tr>
+  </table>
+</div>
+
+<div class="ringkasan">
+  <p class="label">Ringkasan Hasil Pengujian:</p>
+  <table>
+    <thead>
+      <tr><th>Keterangan</th><th>Jumlah Kasus Uji</th><th>Persentase</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Valid</td><td>24</td><td>96%</td></tr>
+      <tr><td>Sebagian</td><td>1</td><td>4%</td></tr>
+      <tr><td>Tidak Valid</td><td>0</td><td>0%</td></tr>
+      <tr><td><strong>Total</strong></td><td><strong>25</strong></td><td><strong>100%</strong></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="catatan">
+  <p class="label">Catatan:</p>
+  <p><strong>TC-10 (Rekap Absensi PDF):</strong> Fitur generate PDF rekap absensi telah berfungsi. Namun kolom tanda tangan digital pembimbing magang pada dokumen PDF belum tersedia pada versi pengujian ini dan direncanakan untuk dikembangkan pada iterasi berikutnya.</p>
+</div>
+
+<div class="pengesahan">
+  <table>
+    <tr>
+      <td><p>Dibuat oleh,</p><p class="ttd-line">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</p><p>Mahasiswa / Peserta Magang</p></td>
+      <td><p>Diperiksa oleh,</p><p class="ttd-line">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</p><p>Pembimbing / HRD</p></td>
+      <td><p>Mengetahui,</p><p class="ttd-line">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</p><p>Pimpinan Departemen</p></td>
+    </tr>
+  </table>
+</div>
+
+</body>
+</html>

@@ -31,7 +31,7 @@
       </div>
 
       <!-- User Card -->
-      <div class="sidebar-user">
+      <div class="sidebar-user" @click="goToProfile" style="cursor:pointer" title="Profil Saya">
         <div class="sidebar-user__avatar">{{ initials }}</div>
         <div v-if="!collapsed" class="sidebar-user__info">
           <div class="sidebar-user__name">{{ user?.nama_lengkap }}</div>
@@ -44,18 +44,57 @@
         <template v-for="(group, gi) in navGroups" :key="gi">
           <div v-if="!collapsed && group.label" class="sidebar-nav__label">{{ group.label }}</div>
           <div v-else-if="collapsed && gi > 0" class="sidebar-nav__divider"></div>
-          <button
-            v-for="item in group.items"
-            :key="item.key"
-            class="nav-btn"
-            :class="{ 'nav-btn--active': activeTab === item.key }"
-            @click="handleNavClick(item)"
-            :title="collapsed ? item.label : ''"
-          >
-            <span class="nav-btn__icon" v-html="item.icon"></span>
-            <span v-if="!collapsed" class="nav-btn__label">{{ item.label }}</span>
-            <span v-if="!collapsed && item.badge" class="nav-btn__badge">{{ item.badge }}</span>
-          </button>
+          <template v-for="item in group.items" :key="item.key">
+            <!-- Parent item with children (expandable) -->
+            <template v-if="item.children?.length">
+              <button
+                class="nav-btn nav-btn--parent"
+                :class="{ 'nav-btn--active': isChildActive(item), 'nav-btn--expanded': expandedKeys.has(item.key) }"
+                @click="handleNavClick(item)"
+                :title="collapsed ? item.label : ''"
+              >
+                <span class="nav-btn__icon">
+                  <span v-html="item.icon"></span>
+                </span>
+                <span v-if="item.dot" class="nav-btn__dot"></span>
+                <span v-if="!collapsed" class="nav-btn__label">{{ item.label }}</span>
+                <span v-if="!collapsed && item.badge" class="nav-btn__badge">{{ item.badge }}</span>
+                <svg v-if="!collapsed" class="nav-btn__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none">
+                  <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <!-- Children -->
+              <div v-if="!collapsed && expandedKeys.has(item.key)" class="nav-children">
+                <button
+                  v-for="child in item.children"
+                  :key="child.key"
+                  class="nav-btn nav-btn--child"
+                  :class="{ 'nav-btn--active': activeTab === child.key }"
+                  @click="handleNavClick(child)"
+                >
+                  <span class="nav-btn__child-dot"></span>
+                  <span class="nav-btn__label">{{ child.label }}</span>
+                  <span v-if="child.badge" class="nav-btn__badge">{{ child.badge }}</span>
+                  <span v-if="child.dot" class="nav-btn__dot nav-btn__dot--inline"></span>
+                </button>
+              </div>
+            </template>
+            <!-- Regular item -->
+            <button
+              v-else
+              class="nav-btn"
+              :class="{ 'nav-btn--active': activeTab === item.key }"
+              @click="handleNavClick(item)"
+              :title="collapsed ? item.label : ''"
+            >
+              <span class="nav-btn__icon">
+                <span v-html="item.icon"></span>
+              </span>
+              <span v-if="item.dot" class="nav-btn__dot"></span>
+              <span v-if="!collapsed" class="nav-btn__label">{{ item.label }}</span>
+              <span v-if="!collapsed && item.badge" class="nav-btn__badge">{{ item.badge }}</span>
+            </button>
+          </template>
         </template>
       </nav>
 
@@ -97,7 +136,46 @@
             <span class="topbar-role-chip__dot"></span>
             {{ roleName }}
           </div>
-          <div class="topbar-avatar" :title="user?.nama_lengkap">{{ initials }}</div>
+
+          <!-- Bell Notifikasi -->
+          <div class="notif-wrap" ref="notifWrap">
+            <button class="notif-btn" @click.stop="toggleNotif" :title="notifBadge ? `${notifBadge} notifikasi baru` : 'Notifikasi'">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.73 21a2 2 0 01-3.46 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <span v-if="notifBadge > 0" class="notif-badge">{{ notifBadge > 99 ? '99+' : notifBadge }}</span>
+            </button>
+
+            <div v-if="notifOpen" class="notif-dropdown">
+              <div class="notif-dropdown__head">
+                <span class="notif-dropdown__title">Notifikasi</span>
+                <button v-if="notifBadge > 0" class="notif-baca-semua" @click="markAllRead">Tandai semua dibaca</button>
+              </div>
+              <div v-if="notifLoading" class="notif-loading">
+                <div class="notif-spinner"></div>
+              </div>
+              <div v-else-if="notifList.length === 0" class="notif-empty">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="#d1d5db" stroke-width="1.5"/><path d="M13.73 21a2 2 0 01-3.46 0" stroke="#d1d5db" stroke-width="1.5"/></svg>
+                <span>Belum ada notifikasi</span>
+              </div>
+              <div v-else class="notif-list">
+                <div
+                  v-for="n in notifList"
+                  :key="n.id"
+                  :class="['notif-item', !n.is_read && 'notif-item--unread']"
+                  @click="markRead(n)"
+                >
+                  <div v-if="!n.is_read" class="notif-item__dot"></div>
+                  <div v-else class="notif-item__dot notif-item__dot--read"></div>
+                  <div class="notif-item__body">
+                    <div class="notif-item__title">{{ n.judul }}</div>
+                    <div class="notif-item__msg">{{ n.pesan }}</div>
+                    <div class="notif-item__time">{{ formatNotifTime(n.created_at) }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="topbar-avatar" :title="user?.nama_lengkap" @click="goToProfile" style="cursor:pointer">{{ initials }}</div>
         </div>
       </header>
 
@@ -107,19 +185,50 @@
       </main>
     </div>
   </div>
+
+  <!-- Modal Peringatan Ganti Password -->
+  <Teleport to="body">
+    <div v-if="showPwWarning" class="pw-warn-backdrop">
+      <div class="pw-warn-box">
+        <div class="pw-warn-icon">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="11" width="18" height="11" rx="2" stroke="#f59e0b" stroke-width="2"/>
+            <path d="M7 11V7a5 5 0 0110 0v4" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="12" cy="16" r="1.5" fill="#f59e0b"/>
+          </svg>
+        </div>
+        <div class="pw-warn-title">Segera Ganti Password</div>
+        <div class="pw-warn-msg">
+          Akun Anda masih menggunakan <strong>password default</strong> yang dikirimkan melalui email.
+          Demi keamanan, harap ganti password Anda sekarang.
+        </div>
+        <div class="pw-warn-actions">
+          <button class="pw-warn-btn pw-warn-btn--later" @click="showPwWarning = false">Nanti</button>
+          <button class="pw-warn-btn pw-warn-btn--now" @click="goToProfileFromWarning">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Ubah Sekarang
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuth } from "@/hooks/useAuth";
+import api from "@/lib/api";
+import { setupPushNotifications } from "@/services/fcm";
 
 export interface NavItem {
   key: string;
   label: string;
   icon: string;
   badge?: string | number;
+  dot?: boolean;
   route?: string;
+  children?: NavItem[];
 }
 
 export interface NavGroup {
@@ -143,20 +252,44 @@ const router = useRouter();
 const activeTab = ref(props.defaultTab ?? props.navGroups[0]?.items[0]?.key ?? "");
 const collapsed = ref(false);
 const mobileOpen = ref(false);
+const expandedKeys = ref<Set<string>>(new Set());
 
 const initials = computed(() => {
   const name = user.value?.nama_lengkap ?? "";
   return name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
 });
 
-const allItems = computed(() => props.navGroups.flatMap(g => g.items));
-const currentPageLabel = computed(() => allItems.value.find(i => i.key === activeTab.value)?.label ?? "Dashboard");
+const allItems = computed(() => props.navGroups.flatMap(g => g.items.flatMap(i => i.children ? i.children : [i])));
+const currentPageLabel = computed(() => {
+  const flat = props.navGroups.flatMap(g => g.items);
+  const parent = flat.find(i => i.children?.some(c => c.key === activeTab.value));
+  if (parent) return parent.label;
+  return flat.find(i => i.key === activeTab.value)?.label ?? allItems.value.find(i => i.key === activeTab.value)?.label ?? "Dashboard";
+});
+
+function isChildActive(item: NavItem): boolean {
+  return !!item.children?.some(c => c.key === activeTab.value);
+}
 
 function toggleCollapse() {
   collapsed.value = !collapsed.value;
 }
 
+function toggleExpand(key: string) {
+  if (expandedKeys.value.has(key)) {
+    expandedKeys.value.delete(key);
+  } else {
+    expandedKeys.value.add(key);
+  }
+  expandedKeys.value = new Set(expandedKeys.value);
+}
+
 function handleNavClick(item: NavItem) {
+  if (item.children?.length) {
+    if (collapsed.value) collapsed.value = false;
+    toggleExpand(item.key);
+    return;
+  }
   if (item.route) {
     router.push(item.route);
   } else {
@@ -165,6 +298,129 @@ function handleNavClick(item: NavItem) {
     emit("tab-change", item.key);
   }
 }
+
+function goToProfile() {
+  activeTab.value = "profil";
+  mobileOpen.value = false;
+  emit("tab-change", "profil");
+}
+
+// ── Notifikasi ─────────────────────────────────────────────
+interface Notif {
+  id: string;
+  judul: string;
+  pesan: string;
+  tipe: string;
+  referensi_id: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+// ── Password warning ────────────────────────────────────────
+const showPwWarning = ref(false);
+
+async function checkPasswordChanged() {
+  try {
+    const r = await api.get("/api/auth/me");
+    if (r.data?.data?.password_changed === false) {
+      showPwWarning.value = true;
+    }
+  } catch { /* silent */ }
+}
+
+function goToProfileFromWarning() {
+  showPwWarning.value = false;
+  goToProfile();
+}
+
+const notifOpen    = ref(false);
+const notifList    = ref<Notif[]>([]);
+const notifBadge   = ref(0);
+const notifLoading = ref(false);
+const notifWrap    = ref<HTMLElement | null>(null);
+
+async function fetchNotifBadge() {
+  try {
+    const r = await api.get("/api/notifikasi/badge");
+    notifBadge.value = r.data?.data?.total_unread ?? 0;
+  } catch { /* silent */ }
+}
+
+async function fetchNotifList() {
+  notifLoading.value = true;
+  try {
+    const r = await api.get("/api/notifikasi");
+    notifList.value = r.data?.data ?? [];
+  } catch { /* silent */ } finally {
+    notifLoading.value = false;
+  }
+}
+
+async function toggleNotif() {
+  notifOpen.value = !notifOpen.value;
+  if (notifOpen.value) fetchNotifList();
+}
+
+function markRead(n: Notif) {
+  if (!n.is_read) {
+    n.is_read = true;
+    notifBadge.value = Math.max(0, notifBadge.value - 1);
+    api.patch(`/api/notifikasi/${n.id}/read`).catch(() => {});
+  }
+}
+
+function markAllRead() {
+  notifList.value.forEach(n => { n.is_read = true; });
+  notifBadge.value = 0;
+  api.patch("/api/notifikasi/read-all").catch(() => {});
+}
+
+function formatNotifTime(iso: string) {
+  const d = new Date(iso);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60)    return "Baru saja";
+  if (diff < 3600)  return `${Math.floor(diff / 60)} menit lalu`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} jam lalu`;
+  return d.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+}
+
+function onClickOutside(e: MouseEvent) {
+  if (notifWrap.value && !notifWrap.value.contains(e.target as Node)) {
+    notifOpen.value = false;
+  }
+}
+
+let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+// Tangani navigasi dari klik notifikasi background (via SW postMessage)
+function onSwMessage(event: MessageEvent) {
+  if (event.data?.type === 'NAVIGATE' && event.data.route) {
+    router.push(event.data.route).catch(() => {});
+  }
+}
+
+onMounted(() => {
+  document.addEventListener("click", onClickOutside);
+  fetchNotifBadge();
+  checkPasswordChanged();
+  pollInterval = setInterval(fetchNotifBadge, 30_000);
+
+  // Inisialisasi FCM push notification — minta izin & daftarkan token
+  setupPushNotifications().catch(() => {});
+
+  // Dengarkan pesan navigasi dari service worker (klik notif background)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', onSwMessage);
+  }
+});
+
+onUnmounted(() => {
+  document.removeEventListener("click", onClickOutside);
+  if (pollInterval) clearInterval(pollInterval);
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.removeEventListener('message', onSwMessage);
+  }
+});
 
 defineExpose({ activeTab });
 </script>
@@ -226,12 +482,13 @@ defineExpose({ activeTab });
 }
 
 .sidebar-logo__mark { flex-shrink: 0; display: flex; }
-
 .sidebar-logo__img {
-  width: 28px;
-  height: 28px;
+  height: 36px;
+  width: 36px;
   object-fit: contain;
   border-radius: 6px;
+  background: #fff;
+  padding: 3px;
 }
 
 .sidebar-logo__text {
@@ -300,7 +557,7 @@ defineExpose({ activeTab });
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #48AF4A, #2d8f30);
+  background: linear-gradient(135deg, #48AF4A, #1a5c20);
   color: #fff;
   font-size: 13px;
   font-weight: 700;
@@ -370,7 +627,7 @@ defineExpose({ activeTab });
   transition: background 0.14s, color 0.14s;
   width: 100%;
   white-space: nowrap;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
 }
 .nav-btn:hover { background: rgba(255,255,255,0.07); color: #fff; }
@@ -399,6 +656,66 @@ defineExpose({ activeTab });
   font-weight: 700;
   border-radius: 100px;
   padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+/* Expandable parent nav */
+.nav-btn__chevron {
+  flex-shrink: 0;
+  color: rgba(255,255,255,0.35);
+  transition: transform 0.2s ease;
+}
+.nav-btn--expanded .nav-btn__chevron { transform: rotate(180deg); }
+.nav-btn--parent.nav-btn--active .nav-btn__chevron { color: var(--green-light); }
+
+/* Children container */
+.nav-children {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 2px 0 4px 0;
+  padding-left: 14px;
+  border-left: 1.5px solid rgba(134,239,172,0.2);
+  margin-left: 18px;
+}
+
+/* Child nav item */
+.nav-btn--child {
+  padding: 7px 10px 7px 8px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+.nav-btn__child-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.25);
+  flex-shrink: 0;
+  margin-right: 2px;
+  transition: background 0.15s;
+}
+.nav-btn--child.nav-btn--active .nav-btn__child-dot { background: var(--green-accent); }
+.nav-btn--child:hover .nav-btn__child-dot { background: rgba(255,255,255,0.5); }
+
+/* Red dot indicator */
+.nav-btn__dot {
+  position: absolute;
+  top: 5px;
+  left: 23px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 1.5px solid #1a5c20;
+  pointer-events: none;
+  z-index: 1;
+}
+.nav-btn__dot--inline {
+  position: static;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid rgba(26,92,32,0.6);
+  margin-left: auto;
   flex-shrink: 0;
 }
 
@@ -512,7 +829,7 @@ defineExpose({ activeTab });
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #48AF4A, #2d8f30);
+  background: linear-gradient(135deg, #48AF4A, #1a5c20);
   color: #fff;
   font-size: 12px;
   font-weight: 700;
@@ -522,6 +839,74 @@ defineExpose({ activeTab });
   cursor: pointer;
   border: 2px solid #d1fae5;
 }
+
+/* ── Notifikasi Dropdown ───────────────────────────────── */
+.notif-wrap { position: relative; }
+.notif-btn {
+  position: relative; background: none; border: none; cursor: pointer;
+  padding: 5px; color: #6b7280; display: flex; align-items: center;
+  border-radius: 8px; transition: background .15s, color .15s;
+}
+.notif-btn:hover { background: #f0fdf4; color: #16a34a; }
+.notif-badge {
+  position: absolute; top: -3px; right: -5px;
+  background: #ef4444; color: #fff; font-size: 9px; font-weight: 800;
+  min-width: 16px; height: 16px; border-radius: 100px; padding: 0 4px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid #fff; line-height: 1;
+}
+.notif-dropdown {
+  position: absolute; top: calc(100% + 10px); right: -4px; z-index: 9000;
+  width: 340px; background: #fff; border-radius: 14px;
+  box-shadow: 0 10px 36px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06);
+  border: 1px solid #e9f5e9; overflow: hidden;
+  animation: notif-pop .14s ease;
+}
+@keyframes notif-pop {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+.notif-dropdown__head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 12px; border-bottom: 1px solid #f0faf0;
+}
+.notif-dropdown__title { font-size: 13px; font-weight: 700; color: #111827; }
+.notif-baca-semua {
+  background: none; border: none; cursor: pointer; padding: 0;
+  font-size: 11.5px; font-weight: 600; color: #48AF4A;
+  font-family: inherit; transition: opacity .15s;
+}
+.notif-baca-semua:hover { opacity: .75; }
+.notif-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 32px 20px; color: #9ca3af; font-size: 12.5px;
+}
+.notif-loading { display: flex; justify-content: center; padding: 28px; }
+.notif-spinner {
+  width: 22px; height: 22px; border: 2.5px solid #e5e7eb;
+  border-top-color: #48AF4A; border-radius: 50%;
+  animation: nspin .7s linear infinite;
+}
+@keyframes nspin { to { transform: rotate(360deg); } }
+.notif-list { max-height: 340px; overflow-y: auto; }
+.notif-item {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 11px 16px; cursor: pointer;
+  border-bottom: 1px solid #f9fafb; transition: background .12s;
+}
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background: #f9fafb; }
+.notif-item--unread { background: #f0fdf4; }
+.notif-item--unread:hover { background: #e9faf0; }
+.notif-item__dot {
+  width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0;
+  background: #22c55e;
+}
+.notif-item__dot--read { background: transparent; }
+.notif-item__body { flex: 1; min-width: 0; }
+.notif-item__title { font-size: 12.5px; font-weight: 700; color: #111827; margin-bottom: 2px; }
+.notif-item__msg { font-size: 11.5px; color: #6b7280; line-height: 1.5; }
+.notif-item__time { font-size: 10.5px; color: #9ca3af; margin-top: 4px; }
 
 /* Page Content */
 .page-content {
@@ -568,5 +953,111 @@ defineExpose({ activeTab });
   .page-content { padding: 16px; }
   .topbar { padding: 0 14px; }
   .topbar-role-chip { display: none; }
+
+  /* Notif dropdown: full-width, fixed di bawah topbar agar tidak overflow */
+  .notif-dropdown {
+    position: fixed;
+    top: 58px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: calc(100dvh - 80px);
+    border-radius: 12px;
+  }
+
+  .notif-list {
+    max-height: calc(100dvh - 180px);
+  }
 }
+
+/* ── Password Warning Modal ── */
+.pw-warn-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(3px);
+}
+
+.pw-warn-box {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px 28px 24px;
+  width: min(420px, calc(100vw - 32px));
+  box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+}
+
+.pw-warn-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #f0fdf4;
+  color: #48AF4A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.pw-warn-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.pw-warn-msg {
+  font-size: 0.875rem;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.pw-warn-msg strong {
+  color: #1a5c20;
+}
+
+.pw-warn-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.pw-warn-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.pw-warn-btn:active { transform: scale(0.98); }
+
+.pw-warn-btn--later {
+  background: #f1f5f9;
+  color: #6b7280;
+}
+
+.pw-warn-btn--later:hover { background: #e2e8f0; }
+
+.pw-warn-btn--now {
+  background: #48AF4A;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.pw-warn-btn--now:hover { background: #48AF4A; }
 </style>

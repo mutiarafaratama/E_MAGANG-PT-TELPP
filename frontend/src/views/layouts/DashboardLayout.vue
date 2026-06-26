@@ -97,6 +97,10 @@
             <span class="topbar-role-chip__dot"></span>
             {{ roleName }}
           </div>
+          <button class="topbar-notif" @click="emit('notif-click')" title="Notifikasi">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.73 21a2 2 0 01-3.46 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <span v-if="notifBadge && notifBadge > 0" class="topbar-notif__badge">{{ notifBadge > 9 ? '9+' : notifBadge }}</span>
+          </button>
           <div class="topbar-avatar" :title="user?.nama_lengkap">{{ initials }}</div>
         </div>
       </header>
@@ -107,6 +111,32 @@
       </main>
     </div>
   </div>
+
+  <!-- ── TOAST OVERLAY ── -->
+  <Teleport to="body">
+    <div class="toast-stack">
+      <transition-group name="toast">
+        <div
+          v-for="t in toasts"
+          :key="t.id"
+          :class="['toast-item', `toast-item--${t.type}`]"
+        >
+          <div class="toast-icon">
+            <svg v-if="t.type === 'success'" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#22c55e"/><path d="M8 12l3 3 5-6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg v-else-if="t.type === 'warning'" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#f59e0b"/><line x1="12" y1="8" x2="12" y2="12" stroke="#fff" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16" r="1" fill="#fff"/></svg>
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#3b82f6"/><line x1="12" y1="8" x2="12" y2="12" stroke="#fff" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16" r="1" fill="#fff"/></svg>
+          </div>
+          <div class="toast-body">
+            <div class="toast-title">{{ t.judul }}</div>
+            <div class="toast-msg">{{ t.pesan }}</div>
+          </div>
+          <button class="toast-close" @click="removeToast(t.id)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </transition-group>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -131,10 +161,12 @@ const props = defineProps<{
   navGroups: NavGroup[];
   roleName: string;
   defaultTab?: string;
+  notifBadge?: number;
 }>();
 
 const emit = defineEmits<{
   (e: "tab-change", tab: string): void;
+  (e: "notif-click"): void;
 }>();
 
 const { user, logout } = useAuth();
@@ -143,6 +175,28 @@ const router = useRouter();
 const activeTab = ref(props.defaultTab ?? props.navGroups[0]?.items[0]?.key ?? "");
 const collapsed = ref(false);
 const mobileOpen = ref(false);
+
+interface Toast {
+  id: number;
+  judul: string;
+  pesan: string;
+  type: "info" | "success" | "warning";
+}
+let toastIdSeq = 0;
+const toasts = ref<Toast[]>([]);
+const toastTimers: Record<number, ReturnType<typeof setTimeout>> = {};
+
+function addToast(judul: string, pesan: string, type: Toast["type"] = "info") {
+  const id = ++toastIdSeq;
+  toasts.value.push({ id, judul, pesan, type });
+  toastTimers[id] = setTimeout(() => removeToast(id), 5000);
+}
+
+function removeToast(id: number) {
+  clearTimeout(toastTimers[id]);
+  delete toastTimers[id];
+  toasts.value = toasts.value.filter(t => t.id !== id);
+}
 
 const initials = computed(() => {
   const name = user.value?.nama_lengkap ?? "";
@@ -166,7 +220,7 @@ function handleNavClick(item: NavItem) {
   }
 }
 
-defineExpose({ activeTab });
+defineExpose({ activeTab, addToast });
 </script>
 
 <style scoped>
@@ -570,4 +624,85 @@ defineExpose({ activeTab });
   .topbar { padding: 0 14px; }
   .topbar-role-chip { display: none; }
 }
+
+/* ── NOTIF BELL ── */
+.topbar-notif {
+  position: relative;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 9px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #6b7280;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.topbar-notif:hover { background: #e5e7eb; color: #111827; }
+.topbar-notif__badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 100px;
+  padding: 1px 4px;
+  min-width: 16px;
+  text-align: center;
+  line-height: 14px;
+  border: 2px solid #fff;
+}
+
+/* ── TOAST ── */
+.toast-stack {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 360px;
+  pointer-events: none;
+}
+.toast-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.14), 0 1px 4px rgba(0,0,0,0.08);
+  border-left: 4px solid #3b82f6;
+  pointer-events: all;
+  animation: toast-in 0.25s ease;
+}
+.toast-item--success { border-left-color: #22c55e; }
+.toast-item--warning { border-left-color: #f59e0b; }
+.toast-icon { flex-shrink: 0; margin-top: 1px; }
+.toast-body { flex: 1; min-width: 0; }
+.toast-title { font-size: 12.5px; font-weight: 700; color: #111827; margin-bottom: 2px; }
+.toast-msg { font-size: 11.5px; color: #6b7280; line-height: 1.5; }
+.toast-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 2px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  margin-top: 1px;
+}
+.toast-close:hover { color: #374151; }
+@keyframes toast-in { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.toast-enter-active { transition: all 0.25s ease; }
+.toast-leave-active { transition: all 0.2s ease; }
+.toast-enter-from { transform: translateX(20px); opacity: 0; }
+.toast-leave-to { transform: translateX(20px); opacity: 0; }
 </style>
