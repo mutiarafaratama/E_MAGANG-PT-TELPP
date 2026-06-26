@@ -47,3 +47,11 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Environment files and sensitive data
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+serviceAccountKey.json
