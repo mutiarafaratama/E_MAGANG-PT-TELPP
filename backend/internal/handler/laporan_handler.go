@@ -11,15 +11,17 @@ import (
         "github.com/telpp/emagang/internal/middleware"
         "github.com/telpp/emagang/internal/models"
         "github.com/telpp/emagang/internal/repository"
+        "github.com/telpp/emagang/internal/service"
 )
 
 type LaporanHandler struct {
-        repo        *repository.LaporanRepository
-        pelRepo     *repository.PelaksanaanRepository
+        svc     *service.LaporanService
+        repo    *repository.LaporanRepository
+        pelRepo *repository.PelaksanaanRepository
 }
 
-func NewLaporanHandler(repo *repository.LaporanRepository, pelRepo *repository.PelaksanaanRepository) *LaporanHandler {
-        return &LaporanHandler{repo: repo, pelRepo: pelRepo}
+func NewLaporanHandler(svc *service.LaporanService, repo *repository.LaporanRepository, pelRepo *repository.PelaksanaanRepository) *LaporanHandler {
+        return &LaporanHandler{svc: svc, repo: repo, pelRepo: pelRepo}
 }
 
 // POST /api/laporan/upload — peserta upload laporan
@@ -54,7 +56,8 @@ func (h *LaporanHandler) Upload(c *gin.Context) {
                 return
         }
 
-        laporan, err := h.repo.Upload(c.Request.Context(), pel.ID, fh)
+        // Upload via service — otomatis kirim notif push ke semua HRD
+        laporan, err := h.svc.Upload(c.Request.Context(), pel.ID, fh)
         if err != nil {
                 c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: "upload_failed", Message: err.Error()})
                 return
@@ -145,21 +148,22 @@ func (h *LaporanHandler) Review(c *gin.Context) {
 
         reviewerID := middleware.GetUserID(c)
 
-        // Ambil laporan untuk tahu pelaksanaan_id
-        laporan, err := h.repo.FindByID(c.Request.Context(), id)
+        // Ambil laporan untuk tahu pelaksanaan_id (untuk update status pelaksanaan)
+        laporan, err := h.svc.FindByID(c.Request.Context(), id)
         if err != nil {
                 c.JSON(http.StatusNotFound, models.ErrorResponse{Error: "not_found", Message: "Laporan tidak ditemukan"})
                 return
         }
 
-        if err := h.repo.Review(c.Request.Context(), id, req.Status, req.CatatanHRD, reviewerID); err != nil {
+        // Review via service — otomatis kirim notif push ke peserta
+        if err := h.svc.Review(c.Request.Context(), id, req.Status, req.CatatanHRD, reviewerID); err != nil {
                 c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: "server_error", Message: err.Error()})
                 return
         }
 
         // Jika disetujui → update status pelaksanaan ke penilaian
         if req.Status == models.StatusLaporanDisetujui {
-                _ = h.pelRepo.UpdateStatus(c.Request.Context(), laporan.PelaksanaanID, models.StatusPenilaian)
+                _ = h.svc.UpdateStatusPelaksanaan(c.Request.Context(), laporan.PelaksanaanID, models.StatusPenilaian)
         }
 
         msg := "Laporan berhasil disetujui"

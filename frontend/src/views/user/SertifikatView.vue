@@ -142,9 +142,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import api from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import { useAppWS } from "@/composables/useAppWS";
+
+const emit = defineEmits<{ (e: "refresh"): void }>();
 
 const props = defineProps<{ pelaksanaan: any; pengajuan?: any }>();
 const { user } = useAuth();
@@ -227,6 +230,23 @@ async function previewSertifikat() {
     pdfSrc.value = "";
   }
 }
+
+const { connect: wsConnect, disconnect: wsDisconnect, subscribe: wsSubscribe } = useAppWS();
+let wsUnsub: (() => void) | null = null;
+
+onMounted(() => {
+  wsConnect();
+  wsUnsub = wsSubscribe((msg: any) => {
+    if (["notifikasi", "badge_update"].includes(msg.type)) {
+      emit("refresh");
+    }
+  });
+});
+
+onUnmounted(() => {
+  wsUnsub?.();
+  wsDisconnect();
+});
 </script>
 
 <style scoped>

@@ -5,7 +5,7 @@
 
     <div class="auth-container">
       <div class="auth-brand">
-        <img src="/logotel.png" alt="PT TELPP" class="auth-brand__logo" />
+        <img src="/logo_emagang.png" alt="PT TELPP" class="auth-brand__logo" />
         <span>e-Magang <strong>PT TELPP</strong></span>
       </div>
 
@@ -13,6 +13,11 @@
         <div class="auth-card__header">
           <h1>Selamat Datang Kembali</h1>
           <p>Masuk untuk mengakses pengajuan magang</p>
+        </div>
+
+        <div v-if="sesiExpired" class="alert alert--warning">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#d97706" stroke-width="2"/><line x1="12" y1="8" x2="12" y2="12" stroke="#d97706" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16" r="1" fill="#d97706"/></svg>
+          Sesi Anda telah berakhir (24 jam). Silakan masuk kembali.
         </div>
 
         <div v-if="akunDihapus" class="alert alert--info">
@@ -73,6 +78,10 @@
         </div>
 
         <p class="auth-footer-text">
+          <router-link to="/lupa-kata-sandi" class="lupa-link">Lupa kata sandi?</router-link>
+        </p>
+
+        <p class="auth-footer-text">
           Belum punya akun?
           <router-link to="/daftar">Daftar sekarang</router-link>
         </p>
@@ -95,6 +104,7 @@ const form = ref({ email: "", password: "" });
 const showPass = ref(false);
 const registered = computed(() => route.query.registered === "1");
 const akunDihapus = computed(() => route.query.reason === "akun_dihapus");
+const sesiExpired = computed(() => route.query.expired === "1");
 
 onMounted(() => {
   error.value = null;
@@ -269,6 +279,7 @@ async function handleLogin() {
 .alert--success { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
 .alert--error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 .alert--info { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.alert--warning { background: #fffbeb; color: #b45309; border: 1px solid #fcd34d; }
 
 .btn-primary {
   width: 100%;
@@ -314,6 +325,14 @@ async function handleLogin() {
 }
 
 .auth-footer-text a:hover { text-decoration: underline; }
+
+.lupa-link {
+  color: #6b7280 !important;
+  font-weight: 500 !important;
+  font-size: 12px;
+}
+
+.lupa-link:hover { color: #374151 !important; }
 
 .auth-back-link {
   display: block;

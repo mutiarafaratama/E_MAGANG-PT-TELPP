@@ -10,7 +10,7 @@
     <nav class="navbar" :class="{ 'navbar--scrolled': navScrolled }">
       <div class="container navbar__inner">
         <a href="/" class="navbar__brand">
-          <img src="/logotel.png" alt="PT TELPP" class="navbar__logo" />
+          <img src="/logo_emagang.png" alt="e-Magang" class="navbar__logo" />
           <span>e-Magang <strong>PT TELPP</strong></span>
         </a>
 
@@ -458,14 +458,28 @@
     <!-- FOOTER -->
     <footer class="footer">
       <div class="container footer__grid">
+        <!-- Brand e-Magang -->
         <div class="footer__brand-col">
           <a href="/" class="footer__brand-link">
-            <img src="/logotel.png" alt="PT TELPP" class="footer__logo" />
+            <img src="/logo_emagang.png" alt="e-Magang" class="footer__logo" />
             <span>e-Magang <strong>PT TELPP</strong></span>
           </a>
           <p class="footer__desc">Portal resmi manajemen magang terpadu untuk talenta muda Indonesia.</p>
-          <p class="footer__address">PT TanjungEnim Lestari Pulp and Paper<br />Muara Enim, Sumatera Selatan</p>
         </div>
+        <!-- Tentang Perusahaan -->
+        <div class="footer__company-col">
+          <div class="footer__col-title">Tentang Perusahaan</div>
+          <a href="https://www.telpp.com/" target="_blank" rel="noopener noreferrer" class="footer__telpp-brand">
+            <img :src="'/logotel.png'" alt="PT TELPP" class="footer__telpp-logo" />
+          </a>
+          <p class="footer__desc">PT TanjungEnim Lestari Pulp and Paper — perusahaan pulp & kertas terkemuka di Sumatera Selatan.</p>
+          <p class="footer__address">Muara Enim, Sumatera Selatan</p>
+          <a href="https://www.telpp.com/" target="_blank" rel="noopener noreferrer" class="footer__website-link">
+            www.telpp.com
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-left:3px"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><polyline points="15 3 21 3 21 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="10" y1="14" x2="21" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </a>
+        </div>
+        <!-- Navigasi -->
         <div>
           <div class="footer__col-title">Navigasi</div>
           <ul>
@@ -475,6 +489,7 @@
             <li><a href="#faq">FAQ</a></li>
           </ul>
         </div>
+        <!-- Akun -->
         <div>
           <div class="footer__col-title">Akun</div>
           <ul>
@@ -483,6 +498,7 @@
             <li><router-link to="/dashboard">Dashboard</router-link></li>
           </ul>
         </div>
+        <!-- Kontak HRD -->
         <div>
           <div class="footer__col-title">Kontak HRD</div>
           <ul>
@@ -495,7 +511,7 @@
       <div class="footer__bottom">
         <div class="container footer__bottom-inner">
           <span>© 2026 e-Magang PT TELPP. Hak cipta dilindungi.</span>
-          <span>PT TanjungEnim Lestari Pulp and Paper</span>
+          <a href="https://www.telpp.com/" target="_blank" rel="noopener noreferrer" class="footer__bottom-company">PT TanjungEnim Lestari Pulp and Paper</a>
         </div>
       </div>
     </footer>
@@ -862,7 +878,7 @@ const faqs = ref([
   display: flex; align-items: center; gap: 8px;
   font-size: 16px; font-weight: 700; color: #0b1c30; text-decoration: none;
 }
-.navbar__logo { height: 28px; width: auto; }
+.navbar__logo { height: 36px; width: auto; object-fit: contain; background: #fff; padding: 4px 8px; border-radius: 8px; }
 .navbar__brand strong { color: #48AF4A; }
 .navbar__links { display: flex; gap: 28px; }
 .navbar__links a {
@@ -1362,7 +1378,7 @@ const faqs = ref([
 
 /* ── FOOTER ── */
 .footer { background: #0b1c30; padding: 64px 0 0; }
-.footer__grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 48px; }
+.footer__grid { display: grid; grid-template-columns: 1.1fr 1.5fr 1fr 1fr 1fr; gap: 40px; padding-bottom: 48px; }
 .footer__brand-col { display: flex; flex-direction: column; gap: 14px; }
 .footer__brand-link { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #fff; text-decoration: none; }
 .footer__brand-link strong { color: #48AF4A; }
@@ -1374,6 +1390,21 @@ const faqs = ref([
 .footer li   { font-size: 13px; color: rgba(255,255,255,0.45); }
 .footer li a { color: rgba(255,255,255,0.5); text-decoration: none; transition: color 0.15s; }
 .footer li a:hover { color: #86efac; }
+/* Kolom Tentang Perusahaan */
+.footer__company-col { display: flex; flex-direction: column; gap: 12px; }
+.footer__telpp-brand { display: inline-flex; }
+.footer__telpp-logo { height: 32px; width: auto; object-fit: contain; background: #fff; padding: 4px 10px; border-radius: 8px; transition: opacity 0.15s; }
+.footer__telpp-brand:hover .footer__telpp-logo { opacity: 0.85; }
+.footer__website-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12.5px; font-weight: 600; color: #48AF4A;
+  text-decoration: none; transition: color 0.15s;
+}
+.footer__website-link:hover { color: #86efac; }
+.footer__bottom-company {
+  color: rgba(255,255,255,0.38); text-decoration: none; font-size: 12px; transition: color 0.15s;
+}
+.footer__bottom-company:hover { color: #86efac; }
 .footer__bottom { border-top: 1px solid rgba(255,255,255,0.07); }
 .footer__bottom-inner {
   display: flex; justify-content: space-between; align-items: center;

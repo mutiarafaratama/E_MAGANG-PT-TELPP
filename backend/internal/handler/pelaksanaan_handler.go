@@ -62,6 +62,10 @@ func (h *PelaksanaanHandler) SetJadwal(c *gin.Context) {
         if pengajuan.UserID != nil {
                 userIDVal = *pengajuan.UserID
         }
+        var waPembimbing *string
+        if req.WAPembimbing != "" {
+                waPembimbing = &req.WAPembimbing
+        }
         p := &models.PelaksanaanMagang{
                 PengajuanID:    pengajuanID,
                 UserID:         userIDVal,
@@ -69,6 +73,7 @@ func (h *PelaksanaanHandler) SetJadwal(c *gin.Context) {
                 TanggalSelesai: selesai,
                 Divisi:         req.Divisi,
                 PembimbingNama: &req.Pembimbing,
+                WAPembimbing:   waPembimbing,
         }
         if err := h.repo.Create(c.Request.Context(), p); err != nil {
                 c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: "server_error", Message: err.Error()})
@@ -167,6 +172,30 @@ func (h *PelaksanaanHandler) UpdatePembimbing(c *gin.Context) {
                 return
         }
         c.JSON(http.StatusOK, models.SuccessResponse{Message: "Pembimbing berhasil diperbarui"})
+}
+
+// PATCH /api/pelaksanaan/:id/wa-pembimbing — HRD update nomor WA pembimbing
+func (h *PelaksanaanHandler) UpdateWAPembimbing(c *gin.Context) {
+        id, err := uuid.Parse(c.Param("id"))
+        if err != nil {
+                c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "invalid_id", Message: "ID tidak valid"})
+                return
+        }
+        var req struct {
+                WAPembimbing string `json:"wa_pembimbing"`
+        }
+        if err := c.ShouldBindJSON(&req); err != nil {
+                c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "validation_error", Message: err.Error()})
+                return
+        }
+        _, err = database.DB.Exec(c.Request.Context(),
+                `UPDATE pelaksanaan_magang SET wa_pembimbing = NULLIF($1, ''), updated_at = NOW() WHERE id = $2`,
+                req.WAPembimbing, id)
+        if err != nil {
+                c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: "server_error", Message: err.Error()})
+                return
+        }
+        c.JSON(http.StatusOK, models.SuccessResponse{Message: "Nomor WA pembimbing berhasil diperbarui"})
 }
 
 // POST /api/pelaksanaan/:id/sertifikat — HRD upload file PDF sertifikat untuk peserta

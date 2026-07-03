@@ -5,7 +5,7 @@
 
     <div class="auth-container">
       <div class="auth-brand">
-        <img src="/logotel.png" alt="PT TELPP" class="auth-brand__logo" />
+        <img src="/logo_emagang.png" alt="PT TELPP" class="auth-brand__logo" />
         <span>e-Magang <strong>PT TELPP</strong></span>
       </div>
 

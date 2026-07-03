@@ -63,216 +63,312 @@ type PenilaianLampiranData struct {
         Kejuruan   []KejuruanItem
 }
 
-// generateLembarPenilaianPDF — buat PDF "Lembar Penilaian Magang" menggunakan gofpdf
-func generateLembarPenilaianPDF(p *PenilaianLampiranData) ([]byte, error) {
-        pdf := gofpdf.New("P", "mm", "A4", "")
-        pdf.SetMargins(15, 15, 15)
-        pdf.AddPage()
-
-        grade := func(n float64) string {
-                switch {
-                case n >= 85:
-                        return "A — Sangat Baik"
-                case n >= 70:
-                        return "B — Baik"
-                case n >= 55:
-                        return "C — Cukup"
-                default:
-                        return "D — Kurang"
-                }
-        }
-        fmtN := func(n float64) string {
-                if n == 0 {
-                        return "-"
-                }
-                return fmt.Sprintf("%.1f", n)
-        }
-
-        // ── Header ──
-        pdf.SetFillColor(0, 100, 0)
-        pdf.Rect(15, 15, 180, 10, "F")
-        pdf.SetTextColor(255, 255, 255)
-        pdf.SetFont("Helvetica", "B", 11)
-        pdf.SetXY(15, 16)
-        pdf.CellFormat(180, 8, "PT TANJUNGENIM LESTARI PULP AND PAPER", "", 0, "C", false, 0, "")
-
-        pdf.SetTextColor(0, 0, 0)
-        pdf.SetFont("Helvetica", "B", 13)
-        pdf.SetXY(15, 28)
-        pdf.CellFormat(180, 8, "DAFTAR PENILAIAN PESERTA MAGANG", "", 1, "C", false, 0, "")
-        pdf.SetDrawColor(0, 100, 0)
-        pdf.SetLineWidth(0.5)
-        pdf.Line(15, pdf.GetY(), 195, pdf.GetY())
-        pdf.Ln(3)
-
-        // ── Info Peserta ──
-        infoRows := [][2]string{
-                {"Nama Mahasiswa", p.NamaLengkap},
-                {"NIM / NRP", p.NomorInduk},
-                {"Program Studi", p.Jurusan},
-                {"Kelas / Semester", p.KelasSemester},
-                {"Asal Perguruan Tinggi", p.AsalInstitusi},
-        }
-        infoRight := [][2]string{
-                {"Unit Kerja / Divisi", p.Divisi},
-                {"Nama Pembimbing", p.Pembimbing},
-                {"Periode Magang", p.Periode},
-                {"Manager Dept.", func() string { if p.ManagerNama != "" { return p.ManagerNama }; return "—" }()},
-        }
-        pdf.SetFont("Helvetica", "", 9)
-        yStart := pdf.GetY()
-        for i, r := range infoRows {
-                yRow := yStart + float64(i)*6
-                pdf.SetXY(15, yRow)
-                pdf.SetFont("Helvetica", "B", 9)
-                pdf.CellFormat(42, 5.5, r[0], "", 0, "L", false, 0, "")
-                pdf.SetFont("Helvetica", "", 9)
-                pdf.CellFormat(4, 5.5, ":", "", 0, "C", false, 0, "")
-                pdf.CellFormat(44, 5.5, r[1], "", 0, "L", false, 0, "")
-        }
-        for i, r := range infoRight {
-                yRow := yStart + float64(i)*6
-                pdf.SetXY(107, yRow)
-                pdf.SetFont("Helvetica", "B", 9)
-                pdf.CellFormat(42, 5.5, r[0], "", 0, "L", false, 0, "")
-                pdf.SetFont("Helvetica", "", 9)
-                pdf.CellFormat(4, 5.5, ":", "", 0, "C", false, 0, "")
-                pdf.CellFormat(42, 5.5, r[1], "", 0, "L", false, 0, "")
-        }
-        pdf.SetY(yStart + float64(len(infoRows))*6 + 4)
-        pdf.SetDrawColor(200, 200, 200)
-        pdf.Line(15, pdf.GetY(), 195, pdf.GetY())
-        pdf.Ln(3)
-
-        // ── Fungsi cetak tabel nilai ──
-        tableHeader := func(title string) {
-                pdf.SetFillColor(34, 85, 34)
-                pdf.SetTextColor(255, 255, 255)
-                pdf.SetFont("Helvetica", "B", 9)
-                pdf.CellFormat(10, 6, "No", "1", 0, "C", true, 0, "")
-                pdf.CellFormat(100, 6, title, "1", 0, "L", true, 0, "")
-                pdf.CellFormat(30, 6, "Nilai (Angka)", "1", 0, "C", true, 0, "")
-                pdf.CellFormat(40, 6, "Keterangan", "1", 1, "C", true, 0, "")
-                pdf.SetTextColor(0, 0, 0)
-        }
-        tableRow := func(no int, label string, nilai float64) {
-                bg := no%2 == 0
-                if bg {
-                        pdf.SetFillColor(245, 250, 245)
-                } else {
-                        pdf.SetFillColor(255, 255, 255)
-                }
-                pdf.SetFont("Helvetica", "", 9)
-                pdf.CellFormat(10, 6, fmt.Sprintf("%d", no), "1", 0, "C", bg, 0, "")
-                pdf.CellFormat(100, 6, label, "1", 0, "L", bg, 0, "")
-                pdf.SetFont("Helvetica", "B", 9)
-                pdf.CellFormat(30, 6, fmtN(nilai), "1", 0, "C", bg, 0, "")
-                pdf.SetFont("Helvetica", "", 9)
-                pdf.CellFormat(40, 6, grade(nilai), "1", 1, "L", bg, 0, "")
-        }
-
-        // ── I. Kepribadian / Etos Kerja ──
-        pdf.SetFillColor(220, 240, 220)
-        pdf.SetTextColor(0, 60, 0)
-        pdf.SetFont("Helvetica", "B", 9)
-        pdf.CellFormat(180, 6, "  I.  KEPRIBADIAN / ETOS KERJA", "1", 1, "L", true, 0, "")
-        pdf.SetTextColor(0, 0, 0)
-        tableHeader("Unsur yang Dinilai")
-        kepribadian := [][2]interface{}{
-                {"Motivasi", p.NilaiMotivasi},
-                {"Inisiatif", p.NilaiInisiatif},
-                {"Disiplin Waktu", p.NilaiDisiplinWaktu},
-                {"Kerajinan", p.NilaiKerajinan},
-                {"Kreativitas", p.NilaiKreativitas},
-                {"Tanggung Jawab", p.NilaiTanggungJawab},
-                {"Kerjasama", p.NilaiKerjasama},
-                {"Adaptasi dengan Lingkungan Kerja", p.NilaiAdaptasi},
-                {"Kehadiran", p.NilaiKehadiran},
-        }
-        for i, row := range kepribadian {
-                tableRow(i+1, row[0].(string), row[1].(float64))
-        }
-        pdf.Ln(2)
-
-        // ── II. Kejuruan ──
-        if len(p.Kejuruan) > 0 {
-                pdf.SetFillColor(220, 240, 220)
-                pdf.SetTextColor(0, 60, 0)
-                pdf.SetFont("Helvetica", "B", 9)
-                pdf.CellFormat(180, 6, "  II.  KEAHLIAN KEJURUAN", "1", 1, "L", true, 0, "")
-                pdf.SetTextColor(0, 0, 0)
-                tableHeader("Unsur yang Dinilai")
-                for i, k := range p.Kejuruan {
-                        tableRow(i+1, k.Komponen, k.Nilai)
-                }
-                pdf.Ln(2)
-        }
-
-        // ── III. K3 ──
-        pdf.SetFillColor(220, 240, 220)
-        pdf.SetTextColor(0, 60, 0)
-        pdf.SetFont("Helvetica", "B", 9)
-        pdf.CellFormat(180, 6, "  III.  KESELAMATAN & KESEHATAN KERJA (K3)", "1", 1, "L", true, 0, "")
-        pdf.SetTextColor(0, 0, 0)
-        tableHeader("Unsur yang Dinilai")
-        k3Rows := [][2]interface{}{
-                {"Safety (Keselamatan Kerja)", p.NilaiK3Safety},
-                {"Metode Kerja", p.NilaiK3Metode},
-                {"Manajemen K3", p.NilaiK3Manajemen},
-                {"Volume Kerja", p.NilaiK3Volume},
-        }
-        for i, row := range k3Rows {
-                tableRow(i+1, row[0].(string), row[1].(float64))
-        }
-        pdf.Ln(2)
-
-        // ── IV. Presentasi ──
-        pdf.SetFillColor(220, 240, 220)
-        pdf.SetTextColor(0, 60, 0)
-        pdf.SetFont("Helvetica", "B", 9)
-        pdf.CellFormat(180, 6, "  IV.  PRESENTASI / LAPORAN AKHIR", "1", 1, "L", true, 0, "")
-        pdf.SetTextColor(0, 0, 0)
-        tableHeader("Unsur yang Dinilai")
-        prsRows := [][2]interface{}{
-                {"Proses Presentasi", p.NilaiPrsProses},
-                {"Penguasaan Teori", p.NilaiPrsTeori},
-                {"Judul / Tema", p.NilaiPrsJudul},
-                {"Data & Analisis", p.NilaiPrsData},
-        }
-        for i, row := range prsRows {
-                tableRow(i+1, row[0].(string), row[1].(float64))
-        }
-        pdf.Ln(4)
-
-        // ── Nilai Akhir ──
-        pdf.SetFillColor(0, 100, 0)
-        pdf.SetTextColor(255, 255, 255)
-        pdf.SetFont("Helvetica", "B", 11)
-        pdf.CellFormat(130, 9, "NILAI AKHIR", "1", 0, "L", true, 0, "")
-        pdf.SetFont("Helvetica", "B", 13)
-        pdf.CellFormat(50, 9, fmt.Sprintf("%.1f  —  %s", p.NilaiAkhir, grade(p.NilaiAkhir)), "1", 1, "C", true, 0, "")
-        pdf.SetTextColor(0, 0, 0)
-        pdf.Ln(3)
-
-        // ── Catatan & Tanggal ──
-        if p.Catatan != "" {
-                pdf.SetFont("Helvetica", "I", 9)
-                pdf.SetTextColor(80, 80, 80)
-                pdf.MultiCell(180, 5, "Catatan: "+p.Catatan, "", "L", false)
-                pdf.Ln(2)
-        }
-        if p.DinilaiAt != "" {
-                pdf.SetTextColor(120, 120, 120)
-                pdf.SetFont("Helvetica", "", 8)
-                pdf.CellFormat(180, 5, "Dinilai pada: "+p.DinilaiAt, "", 1, "R", false, 0, "")
-        }
-
-        var buf bytes.Buffer
-        if err := pdf.Output(&buf); err != nil {
-                return nil, fmt.Errorf("gagal generate PDF penilaian: %w", err)
-        }
-        return buf.Bytes(), nil
+// logoPathForPDF mengembalikan path logo PT TELPP untuk dipakai gofpdf.Image()
+func logoPathForPDF() string {
+	for _, p := range []string{
+		"./assets/logotel.png",
+		"../artifacts/frontend/public/logotel.png",
+	} {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
 }
+
+// generateLembarPenilaianPDF — buat PDF "Lembar Penilaian Magang" menggunakan gofpdf
+// Format sesuai tampilan panel Nilai Akhir di dashboard peserta (NilaiView.vue)
+func generateLembarPenilaianPDF(p *PenilaianLampiranData) ([]byte, error) {
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(15, 13, 15)
+	pdf.AddPage()
+
+	// Grade scale — sama persis dengan NilaiView.vue keteranganNilai()
+	grade := func(n float64) string {
+		switch {
+		case n >= 85:
+			return "A (Baik Sekali)"
+		case n >= 75:
+			return "B (Baik)"
+		case n >= 60:
+			return "C (Cukup)"
+		default:
+			return "D (Kurang)"
+		}
+	}
+	fmtN := func(n float64) string {
+		if n == 0 {
+			return "-"
+		}
+		return fmt.Sprintf("%.1f", n)
+	}
+
+	// ── KOP SURAT (logo + nama perusahaan) ──
+	if lp := logoPathForPDF(); lp != "" {
+		pdf.Image(lp, 15, 12, 25, 0, false, "", 0, "")
+	}
+	pdf.SetTextColor(22, 101, 52)
+	pdf.SetFont("Helvetica", "B", 13)
+	pdf.SetXY(43, 14)
+	pdf.CellFormat(152, 7, "PT TANJUNGENIM LESTARI PULP AND PAPER", "", 1, "L", false, 0, "")
+	pdf.SetTextColor(75, 85, 99)
+	pdf.SetFont("Helvetica", "", 9)
+	pdf.SetX(43)
+	pdf.CellFormat(152, 5, "Tanjung Enim, Sumatera Selatan", "", 0, "L", false, 0, "")
+
+	// Double divider — meniru .kop-divider-thick + .kop-divider-thin di Vue
+	yDiv := 42.0
+	pdf.SetDrawColor(22, 101, 52)
+	pdf.SetLineWidth(1.0)
+	pdf.Line(15, yDiv, 195, yDiv)
+	pdf.SetLineWidth(0.3)
+	pdf.Line(15, yDiv+2.5, 195, yDiv+2.5)
+
+	// ── JUDUL ──
+	pdf.SetTextColor(17, 24, 39)
+	pdf.SetFont("Helvetica", "B", 13)
+	pdf.SetXY(15, yDiv+6)
+	pdf.CellFormat(180, 8, "DAFTAR PENILAIAN PESERTA MAGANG", "", 1, "C", false, 0, "")
+	pdf.Ln(2)
+
+	// ── INFO PESERTA ──
+	infoRows := [][2]string{
+		{"Nama Mahasiswa", p.NamaLengkap},
+		{"NIM / NRP", p.NomorInduk},
+		{"Program Studi", p.Jurusan},
+		{"Kelas / Semester", p.KelasSemester},
+		{"Asal Perguruan Tinggi", p.AsalInstitusi},
+	}
+	infoRight := [][2]string{
+		{"Unit Kerja / Divisi", p.Divisi},
+		{"Nama Pembimbing", p.Pembimbing},
+		{"Periode Magang", p.Periode},
+		{"Manager Dept.", func() string {
+			if p.ManagerNama != "" {
+				return p.ManagerNama
+			}
+			return "\u2014"
+		}()},
+	}
+	yStart := pdf.GetY()
+	for i, r := range infoRows {
+		yRow := yStart + float64(i)*6
+		pdf.SetXY(15, yRow)
+		pdf.SetFont("Helvetica", "B", 9)
+		pdf.CellFormat(44, 5.5, r[0], "", 0, "L", false, 0, "")
+		pdf.SetFont("Helvetica", "", 9)
+		pdf.CellFormat(4, 5.5, ":", "", 0, "C", false, 0, "")
+		pdf.CellFormat(42, 5.5, r[1], "", 0, "L", false, 0, "")
+	}
+	for i, r := range infoRight {
+		yRow := yStart + float64(i)*6
+		pdf.SetXY(107, yRow)
+		pdf.SetFont("Helvetica", "B", 9)
+		pdf.CellFormat(42, 5.5, r[0], "", 0, "L", false, 0, "")
+		pdf.SetFont("Helvetica", "", 9)
+		pdf.CellFormat(4, 5.5, ":", "", 0, "C", false, 0, "")
+		pdf.CellFormat(42, 5.5, r[1], "", 0, "L", false, 0, "")
+	}
+	pdf.SetY(yStart + float64(len(infoRows))*6 + 4)
+	pdf.SetDrawColor(200, 200, 200)
+	pdf.SetLineWidth(0.2)
+	pdf.Line(15, pdf.GetY(), 195, pdf.GetY())
+	pdf.Ln(3)
+
+	// ── Section header helper ──
+	sectionHeader := func(roman, title string) {
+		pdf.SetFillColor(220, 240, 220)
+		pdf.SetTextColor(0, 60, 0)
+		pdf.SetFont("Helvetica", "B", 9)
+		pdf.CellFormat(180, 6, fmt.Sprintf("  %s.  %s", roman, title), "1", 1, "L", true, 0, "")
+		pdf.SetTextColor(0, 0, 0)
+	}
+
+	// ── Table header + row helpers ──
+	tableHeader := func() {
+		pdf.SetFillColor(22, 101, 52)
+		pdf.SetTextColor(255, 255, 255)
+		pdf.SetFont("Helvetica", "B", 9)
+		pdf.CellFormat(10, 6, "No", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(100, 6, "Unsur yang Dinilai", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(30, 6, "Nilai (Angka)", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(40, 6, "Keterangan", "1", 1, "C", true, 0, "")
+		pdf.SetTextColor(0, 0, 0)
+	}
+	tableRow := func(no int, label string, nilai float64) {
+		bg := no%2 == 0
+		if bg {
+			pdf.SetFillColor(245, 250, 245)
+		} else {
+			pdf.SetFillColor(255, 255, 255)
+		}
+		pdf.SetFont("Helvetica", "", 9)
+		pdf.CellFormat(10, 6, fmt.Sprintf("%d", no), "1", 0, "C", bg, 0, "")
+		pdf.CellFormat(100, 6, label, "1", 0, "L", bg, 0, "")
+		pdf.SetFont("Helvetica", "B", 9)
+		pdf.CellFormat(30, 6, fmtN(nilai), "1", 0, "C", bg, 0, "")
+		pdf.SetFont("Helvetica", "", 9)
+		pdf.CellFormat(40, 6, grade(nilai), "1", 1, "L", bg, 0, "")
+	}
+
+	// ── I. KEPRIBADIAN / ETOS KERJA ──
+	sectionHeader("I", "KEPRIBADIAN / ETOS KERJA")
+	tableHeader()
+	kepribadian := [][2]interface{}{
+		{"Motivasi", p.NilaiMotivasi},
+		{"Inisiatif", p.NilaiInisiatif},
+		{"Disiplin Waktu", p.NilaiDisiplinWaktu},
+		{"Kerajinan", p.NilaiKerajinan},
+		{"Kreativitas", p.NilaiKreativitas},
+		{"Tanggung Jawab", p.NilaiTanggungJawab},
+		{"Kerjasama", p.NilaiKerjasama},
+		{"Adaptasi dengan Lingkungan Kerja", p.NilaiAdaptasi},
+		{"Kehadiran", p.NilaiKehadiran},
+	}
+	totalNilai := 0.0
+	for i, row := range kepribadian {
+		tableRow(i+1, row[0].(string), row[1].(float64))
+		totalNilai += row[1].(float64)
+	}
+	pdf.Ln(2)
+
+	// ── II. KEMAMPUAN KEJURUAN ──
+	sectionHeader("II", "KEMAMPUAN KEJURUAN")
+	tableHeader()
+	if len(p.Kejuruan) > 0 {
+		for i, k := range p.Kejuruan {
+			tableRow(i+1, k.Komponen, k.Nilai)
+			totalNilai += k.Nilai
+		}
+	} else {
+		pdf.SetFont("Helvetica", "I", 9)
+		pdf.SetTextColor(150, 150, 150)
+		pdf.CellFormat(180, 6, "  \u2014 Tidak ada data kejuruan \u2014", "1", 1, "L", false, 0, "")
+		pdf.SetTextColor(0, 0, 0)
+	}
+	pdf.Ln(2)
+
+	// ── III. K3 DAN PRODUKTIVITAS ──
+	sectionHeader("III", "K3 DAN PRODUKTIVITAS")
+	tableHeader()
+	k3Rows := [][2]interface{}{
+		{"Safety (Keselamatan Kerja)", p.NilaiK3Safety},
+		{"Metode Kerja", p.NilaiK3Metode},
+		{"Manajemen K3", p.NilaiK3Manajemen},
+		{"Volume Kerja", p.NilaiK3Volume},
+	}
+	for i, row := range k3Rows {
+		tableRow(i+1, row[0].(string), row[1].(float64))
+		totalNilai += row[1].(float64)
+	}
+	pdf.Ln(2)
+
+	// ── IV. PRESENTASI *) — hanya jika ada nilai presentasi ──
+	adaPresentasi := p.NilaiPrsProses+p.NilaiPrsTeori+p.NilaiPrsJudul+p.NilaiPrsData > 0
+	if adaPresentasi {
+		sectionHeader("IV", "PRESENTASI *)")
+		tableHeader()
+		prsRows := [][2]interface{}{
+			{"Proses Presentasi", p.NilaiPrsProses},
+			{"Penguasaan Teori", p.NilaiPrsTeori},
+			{"Judul / Tema", p.NilaiPrsJudul},
+			{"Data & Analisis", p.NilaiPrsData},
+		}
+		for i, row := range prsRows {
+			tableRow(i+1, row[0].(string), row[1].(float64))
+			totalNilai += row[1].(float64)
+		}
+		pdf.Ln(2)
+	}
+
+	// ── JUMLAH & NILAI RATA-RATA ──
+	pdf.SetFillColor(240, 248, 240)
+	pdf.SetFont("Helvetica", "B", 9)
+	pdf.SetTextColor(17, 24, 39)
+	pdf.CellFormat(10, 6.5, "", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(100, 6.5, "JUMLAH", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(30, 6.5, fmt.Sprintf("%.1f", totalNilai), "1", 0, "C", true, 0, "")
+	pdf.CellFormat(40, 6.5, "", "1", 1, "L", true, 0, "")
+
+	pdf.SetFillColor(22, 101, 52)
+	pdf.SetTextColor(255, 255, 255)
+	pdf.SetFont("Helvetica", "B", 10)
+	pdf.CellFormat(110, 8.5, "NILAI RATA-RATA", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Helvetica", "B", 12)
+	pdf.CellFormat(70, 8.5, fmt.Sprintf("%.2f  —  %s", p.NilaiAkhir, grade(p.NilaiAkhir)), "1", 1, "C", true, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+	pdf.Ln(3)
+
+	// ── KETERANGAN SKALA NILAI ──
+	pdf.SetFont("Helvetica", "B", 8)
+	pdf.SetTextColor(75, 85, 99)
+	pdf.CellFormat(22, 5, "KETERANGAN:", "", 0, "L", false, 0, "")
+	pdf.SetFont("Helvetica", "", 8)
+	pdf.CellFormat(38, 5, "\"A\" Baik Sekali : 85 – 100", "", 0, "L", false, 0, "")
+	pdf.CellFormat(32, 5, "\"B\" Baik : 75 – 84", "", 0, "L", false, 0, "")
+	pdf.CellFormat(32, 5, "\"C\" Cukup : 60 – 74", "", 0, "L", false, 0, "")
+	pdf.CellFormat(36, 5, "\"D\" Kurang : < 60", "", 1, "L", false, 0, "")
+	if adaPresentasi {
+		pdf.SetFont("Helvetica", "I", 8)
+		pdf.SetTextColor(120, 120, 120)
+		pdf.CellFormat(180, 5, "*) Kolom Presentasi diisi hanya untuk peserta Perguruan Tinggi (D3/S1/S2)", "", 1, "L", false, 0, "")
+	}
+	pdf.Ln(3)
+
+	// ── CATATAN PEMBIMBING ──
+	if p.Catatan != "" {
+		pdf.SetFont("Helvetica", "I", 9)
+		pdf.SetTextColor(80, 80, 80)
+		pdf.MultiCell(180, 5, "Catatan Pembimbing: "+p.Catatan, "", "L", false)
+		pdf.Ln(2)
+	}
+
+	// ── TTD — Manager Dept. + Pembimbing Lapangan ──
+	pdf.Ln(8)
+	ttdY := pdf.GetY()
+	pdf.SetFont("Helvetica", "", 9)
+	pdf.SetTextColor(50, 50, 50)
+	pdf.SetXY(33, ttdY)
+	pdf.CellFormat(60, 5, "Manager (Dept. terkait),", "", 0, "C", false, 0, "")
+	pdf.SetXY(113, ttdY)
+	pdf.CellFormat(60, 5, "Pembimbing Lapangan,", "", 0, "C", false, 0, "")
+	pdf.Ln(25)
+	pdf.SetDrawColor(80, 80, 80)
+	pdf.SetLineWidth(0.3)
+	pdf.Line(33, pdf.GetY(), 93, pdf.GetY())
+	pdf.Line(113, pdf.GetY(), 173, pdf.GetY())
+	pdf.Ln(2)
+	pdf.SetFont("Helvetica", "B", 9)
+	managerNama := p.ManagerNama
+	if managerNama == "" {
+		managerNama = "\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026"
+	}
+	pembNama := p.Pembimbing
+	if pembNama == "" {
+		pembNama = "\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026"
+	}
+	pdf.SetXY(33, pdf.GetY())
+	pdf.CellFormat(60, 5, managerNama, "", 0, "C", false, 0, "")
+	pdf.SetXY(113, pdf.GetY())
+	pdf.CellFormat(60, 5, pembNama, "", 0, "C", false, 0, "")
+
+	// ── FOOTER ──
+	pdf.Ln(10)
+	pdf.SetFont("Helvetica", "", 8)
+	pdf.SetTextColor(150, 150, 150)
+	footerText := "e-Magang PT TanjungEnim Lestari Pulp and Paper"
+	if p.DinilaiAt != "" {
+		footerText = "Dinilai pada: " + p.DinilaiAt + "  ·  " + footerText
+	}
+	pdf.CellFormat(180, 5, footerText, "", 1, "C", false, 0, "")
+
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		return nil, fmt.Errorf("gagal generate PDF penilaian: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
 
 type EmailService struct{}
 
@@ -1189,4 +1285,105 @@ func (s *EmailService) KirimBackupHapusAkun(toEmail, namaLengkap, divisi, pembim
                 periode, infoNilai, lampiranNote)
 
         return s.kirimViaResend(toEmail, "Backup Dokumen Magang — PT TanjungEnim Lestari Pulp and Paper", html, lampiran)
+}
+
+// KirimResetPassword — email berisi tautan reset kata sandi
+func (s *EmailService) KirimResetPassword(toEmail, namaLengkap, resetURL string) error {
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Reset Kata Sandi — e-Magang TELPP</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:40px 16px;">
+<tr><td align="center">
+<table width="520" cellpadding="0" cellspacing="0"
+       style="max-width:520px;width:100%%;background:#ffffff;border-radius:12px;
+              box-shadow:0 2px 12px rgba(0,0,0,.07);overflow:hidden;">
+
+  <tr><td style="background:#166534;height:4px;font-size:0;">&nbsp;</td></tr>
+
+  <tr>
+    <td style="padding:32px 40px 0;text-align:center;">
+      <p style="margin:0;font-size:11px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:0.12em;">
+        PT TanjungEnim Lestari Pulp and Paper
+      </p>
+      <h1 style="margin:8px 0 0;font-size:22px;font-weight:700;color:#111827;letter-spacing:-0.01em;">
+        Reset Kata Sandi
+      </h1>
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:24px 40px 0;">
+      <table width="100%%" cellpadding="0" cellspacing="0">
+        <tr><td style="border-top:1px solid #f3f4f6;font-size:0;">&nbsp;</td></tr>
+      </table>
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:24px 40px 0;">
+      <p style="margin:0 0 14px;font-size:14px;color:#374151;line-height:1.8;">
+        Yth. <strong>%s</strong>,
+      </p>
+      <p style="margin:0;font-size:14px;color:#374151;line-height:1.8;">
+        Kami menerima permintaan untuk mereset kata sandi akun e-Magang TELPP Anda.
+        Klik tombol di bawah untuk membuat kata sandi baru.
+      </p>
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:28px 40px 0;text-align:center;">
+      <a href="%s"
+         style="display:inline-block;padding:14px 36px;background:#166534;color:#ffffff;
+                font-size:15px;font-weight:700;text-decoration:none;border-radius:8px;
+                letter-spacing:0.02em;">
+        Reset Kata Sandi
+      </a>
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:20px 40px 0;">
+      <table width="100%%" cellpadding="0" cellspacing="0"
+             style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;">
+        <tr>
+          <td style="padding:14px 18px;font-size:13px;color:#92400e;line-height:1.7;">
+            <strong>Tautan ini hanya berlaku selama 1 jam.</strong>
+            Jika Anda tidak meminta reset kata sandi, abaikan email ini — akun Anda tetap aman.
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:20px 40px 0;">
+      <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.7;">
+        Atau salin tautan berikut ke browser Anda:<br>
+        <span style="color:#166534;word-break:break-all;">%s</span>
+      </p>
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:32px 40px 28px;text-align:center;">
+      <p style="margin:0;font-size:11px;color:#9ca3af;line-height:1.7;">
+        PT TanjungEnim Lestari Pulp and Paper &bull; Muara Enim, Sumatera Selatan<br>
+        Email otomatis &mdash; mohon tidak membalas.
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`, namaLengkap, resetURL, resetURL)
+
+	return s.kirimViaResend(toEmail, "Reset Kata Sandi — e-Magang TELPP", html, nil)
 }

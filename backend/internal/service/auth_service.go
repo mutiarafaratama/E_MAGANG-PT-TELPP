@@ -5,6 +5,7 @@ import (
         "crypto/sha256"
         "errors"
         "fmt"
+        "time"
         "unicode"
 
         "github.com/google/uuid"
@@ -42,10 +43,11 @@ func validatePassword(s string) bool {
 
 type AuthService struct {
         userRepo *repository.UserRepository
+        emailSvc *EmailService
 }
 
-func NewAuthService(userRepo *repository.UserRepository) *AuthService {
-        return &AuthService{userRepo: userRepo}
+func NewAuthService(userRepo *repository.UserRepository, emailSvc *EmailService) *AuthService {
+        return &AuthService{userRepo: userRepo, emailSvc: emailSvc}
 }
 
 func (s *AuthService) Register(ctx context.Context, req models.RegisterRequest) (*models.AuthResponse, error) {
@@ -162,4 +164,63 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, oldP
 
         hash, _ := bcrypt.GenerateFromPassword([]byte(newPass), 12)
         return s.userRepo.UpdatePassword(ctx, userID, string(hash))
+}
+
+// ForgotPassword — generate token dan kirim email reset kata sandi (hanya peserta magang)
+func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
+        user, err := s.userRepo.FindByEmail(ctx, email)
+        if err != nil {
+                return errors.New("Email tidak terdaftar sebagai peserta magang pada sistem e-Magang TELPP")
+        }
+
+        if user.Role != models.RolePeserta {
+                return errors.New("Anda belum menjadi peserta magang pada sistem e-Magang TELPP")
+        }
+
+        // Generate token acak (UUID) + hash untuk disimpan di DB
+        rawToken := uuid.New().String()
+        tokenHash := fmt.Sprintf("%x", sha256.Sum256([]byte(rawToken)))
+        expiredAt := time.Now().Add(1 * time.Hour)
+
+        if err := s.userRepo.SavePasswordResetToken(ctx, user.ID, tokenHash, expiredAt); err != nil {
+                return fmt.Errorf("gagal menyimpan token: %w", err)
+        }
+
+        resetURL := frontendURL() + "/reset-kata-sandi?token=" + rawToken
+        _ = s.emailSvc.KirimResetPassword(user.Email, user.NamaLengkap, resetURL)
+
+        return nil
+}
+
+// ResetPassword — validasi token dan update password user
+func (s *AuthService) ResetPassword(ctx context.Context, rawToken, newPassword string) error {
+        if !validatePassword(newPassword) {
+                return errors.New("password harus mengandung huruf, angka, dan karakter spesial (!@#$%^&*()_+=.,><?/)")
+        }
+
+        tokenHash := fmt.Sprintf("%x", sha256.Sum256([]byte(rawToken)))
+        t, err := s.userRepo.FindPasswordResetToken(ctx, tokenHash)
+        if err != nil {
+                return errors.New("tautan reset tidak valid atau sudah kedaluwarsa")
+        }
+
+        if t.Used {
+                return errors.New("tautan reset sudah pernah digunakan")
+        }
+
+        if time.Now().After(t.ExpiredAt) {
+                return errors.New("tautan reset sudah kedaluwarsa. Minta tautan baru")
+        }
+
+        hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), 12)
+        if err != nil {
+                return fmt.Errorf("gagal hash password: %w", err)
+        }
+
+        if err := s.userRepo.UpdatePassword(ctx, t.UserID, string(hash)); err != nil {
+                return fmt.Errorf("gagal memperbarui password: %w", err)
+        }
+
+        _ = s.userRepo.MarkResetTokenUsed(ctx, tokenHash)
+        return nil
 }

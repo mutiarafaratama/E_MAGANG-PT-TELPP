@@ -35,8 +35,8 @@
         </div>
       </div>
 
-      <!-- CTA Buat Tiket -->
-      <div v-if="showTiketCta" class="cw__cta">
+      <!-- CTA Buat Tiket (setelah bot gagal jawab) -->
+      <div v-if="showTiketCta && !showTiketForm" class="cw__cta">
         <p>Ingin melanjutkan ke HRD?</p>
         <button class="cw__cta-btn" @click="showTiketForm = true">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2"/></svg>
@@ -78,6 +78,14 @@
             <polygon points="22 2 15 22 11 13 2 9 22 2" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
           </svg>
         </button>
+      </div>
+
+      <!-- Quick action: langsung hubungi HRD -->
+      <div v-if="!showTiketForm" class="cw__quick-hrd" @click="bukaFormHRD">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Hubungi HRD Langsung
       </div>
     </template>
 
@@ -195,6 +203,15 @@ async function scrollBot() {
 async function scrollTiket() {
   await nextTick()
   if (msgContainerTiket.value) msgContainerTiket.value.scrollTop = msgContainerTiket.value.scrollHeight
+}
+
+// Quick: langsung buka form tiket HRD tanpa lewat bot
+function bukaFormHRD() {
+  tiketSubjek.value = ''
+  tiketFormPesan.value = ''
+  tiketKategori.value = 'umum'
+  showTiketCta.value = false
+  showTiketForm.value = true
 }
 
 // NLP Bot
@@ -487,6 +504,14 @@ watch(activeTiket, () => {
   padding: 10px 14px;
   flex-shrink: 0;
 }
+.cw__quick-hrd {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 14px; border-top: 1px solid #e5e7eb;
+  font-size: 11.5px; font-weight: 600; color: #16a34a;
+  background: #fafafa; cursor: pointer; flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.cw__quick-hrd:hover { background: #f0fdf4; color: #15803d; }
 .cw__cta p { font-size: 12px; color: #15803d; margin: 0 0 8px; }
 .cw__cta-btn {
   display: inline-flex; align-items: center; gap: 6px;

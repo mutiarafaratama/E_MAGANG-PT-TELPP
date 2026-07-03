@@ -12,6 +12,16 @@ const routes = [
     component: () => import('@/views/public/LoginPage.vue')
   },
   {
+    path: '/lupa-kata-sandi',
+    name: 'lupa-kata-sandi',
+    component: () => import('@/views/public/LupaKataSandi.vue')
+  },
+  {
+    path: '/reset-kata-sandi',
+    name: 'reset-kata-sandi',
+    component: () => import('@/views/public/ResetKataSandi.vue')
+  },
+  {
     path: '/register',
     name: 'register',
     component: () => import('@/views/public/RegisterPage.vue')

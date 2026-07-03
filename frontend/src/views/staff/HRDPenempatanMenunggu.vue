@@ -101,6 +101,17 @@
             <input v-model="form.pembimbing" type="text" class="jform-input" :disabled="modalLoading"
               placeholder="Nama pembimbing, kosongkan jika belum ada" />
           </div>
+          <div class="jform-group">
+            <label class="jform-label">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="color:#25D366;margin-right:4px;vertical-align:middle">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" fill="currentColor"/>
+                <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.954-1.418A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+              No WA Pembimbing <span class="jform-opt">(opsional)</span>
+            </label>
+            <input v-model="form.wa_pembimbing" type="tel" class="jform-input" :disabled="modalLoading"
+              placeholder="Contoh: 08123456789" />
+          </div>
           <div v-if="modalError" class="jform-error">{{ modalError }}</div>
           <div v-if="modalSuccess" class="jform-success">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -161,7 +172,7 @@ const penerimaanTanpaJadwal = computed(() => {
 // modal
 const showModal    = ref(false);
 const modalTarget  = ref<Pengajuan | null>(null);
-const form         = ref({ tanggal_mulai: "", tanggal_selesai: "", divisi: "", pembimbing: "" });
+const form         = ref({ tanggal_mulai: "", tanggal_selesai: "", divisi: "", pembimbing: "", wa_pembimbing: "" });
 const modalLoading = ref(false);
 const modalError   = ref<string | null>(null);
 const modalSuccess = ref(false);
@@ -182,7 +193,7 @@ async function fetchData() {
 
 function openJadwalModal(p: Pengajuan) {
   modalTarget.value = p;
-  form.value = { tanggal_mulai: "", tanggal_selesai: "", divisi: "", pembimbing: "" };
+  form.value = { tanggal_mulai: "", tanggal_selesai: "", divisi: "", pembimbing: "", wa_pembimbing: "" };
   modalError.value = null; modalSuccess.value = false; showModal.value = true;
   if (divisiOptions.value.length === 0) fetchDivisi();
 }
@@ -197,6 +208,7 @@ async function submitJadwal() {
       tanggal_selesai: form.value.tanggal_selesai,
       divisi:          form.value.divisi,
       pembimbing:      form.value.pembimbing.trim() || undefined,
+      wa_pembimbing:   form.value.wa_pembimbing.trim() || undefined,
     });
     modalSuccess.value = true;
     const [rPelaksanaan, rPengajuan] = await Promise.all([
@@ -235,16 +247,16 @@ onMounted(fetchData);
 .card-header-actions { display:flex; align-items:center; gap:8px; }
 .count-badge { background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; font-size:11px; font-weight:700; padding:4px 12px; border-radius:100px; }
 .btn-green-sm { background:#48AF4A; color:#fff; border:none; border-radius:8px; padding:6px 14px; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:5px; }
-.btn-green-sm:hover { background:#3d9e3f; }
+.btn-green-sm:hover { background:#48AF4A; }
 .table-wrap { overflow-x:auto; }
 .data-table { width:100%; border-collapse:collapse; font-size:13px; }
 .data-table th { padding:11px 16px; text-align:left; font-size:10.5px; font-weight:600; color:#6b7280; background:#f9fafb; border-bottom:1px solid #f1f5f9; text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap; }
 .data-table td { padding:13px 16px; border-bottom:1px solid #f9fafb; color:#374151; vertical-align:middle; }
 .name-cell { display:flex; align-items:center; gap:10px; }
-.name-avatar { width:32px; height:32px; border-radius:8px; background:linear-gradient(135deg,#48AF4A,#2d8f30); color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.name-avatar { width:32px; height:32px; border-radius:8px; background:linear-gradient(135deg,#48AF4A,#1a5c20); color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 .name-text { font-weight:600; color:#111827; font-size:12.5px; }
 .name-sub { font-size:11px; color:#9ca3af; }
-.tag { background:#eff6ff; color:#1d4ed8; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:600; white-space:nowrap; }
+.tag { background:#f0fdf4; color:#0d2818; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:600; white-space:nowrap; }
 .empty-state { display:flex; flex-direction:column; align-items:center; padding:44px 24px; gap:12px; text-align:center; }
 .empty-state__icon { width:72px; height:72px; background:#f9fafb; border-radius:50%; display:flex; align-items:center; justify-content:center; }
 .empty-state p { font-size:13px; color:#9ca3af; line-height:1.7; margin:0; }
@@ -280,6 +292,6 @@ onMounted(fetchData);
 .btn-cancel-modal:hover:not(:disabled) { background:#e5e7eb; }
 .btn-cancel-modal:disabled { opacity:0.5; cursor:default; }
 .btn-jadwal-simpan { flex:1; background:#48AF4A; color:#fff; border:none; border-radius:10px; padding:11px 16px; font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; transition:background 0.15s; }
-.btn-jadwal-simpan:hover:not(:disabled) { background:#3d9e3f; }
+.btn-jadwal-simpan:hover:not(:disabled) { background:#48AF4A; }
 .btn-jadwal-simpan:disabled { opacity:0.5; cursor:not-allowed; }
 </style>

@@ -111,3 +111,11 @@ func (r *IzinSakitRepository) Tolak(ctx context.Context, id uuid.UUID, rejectedB
         )
         return err
 }
+
+// FindUserAndJenis mengembalikan user_id dan jenis ("izin"/"sakit") dari sebuah request — dipakai untuk notifikasi.
+func (r *IzinSakitRepository) FindUserAndJenis(ctx context.Context, id uuid.UUID) (userID uuid.UUID, jenis string, err error) {
+        err = r.db.QueryRow(ctx,
+                `SELECT user_id, jenis FROM izin_sakit_request WHERE id=$1`, id,
+        ).Scan(&userID, &jenis)
+        return
+}

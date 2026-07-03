@@ -2,10 +2,12 @@ package handler
 
 import (
         "bytes"
+        "context"
         "fmt"
         "log"
         "math"
         "net/http"
+        "os"
         "strings"
         "time"
 
@@ -15,6 +17,7 @@ import (
         "github.com/telpp/emagang/internal/middleware"
         "github.com/telpp/emagang/internal/models"
         "github.com/telpp/emagang/internal/repository"
+        "github.com/telpp/emagang/internal/service"
 )
 
 type AbsensiHandler struct {
@@ -23,6 +26,7 @@ type AbsensiHandler struct {
         pengajuanRepo   *repository.PengajuanRepository
         configRepo      *repository.AbsensiConfigRepository
         divisiRepo      *repository.DivisiRepository
+        notifSvc        *service.NotifikasiService
 }
 
 func NewAbsensiHandler(
@@ -31,8 +35,9 @@ func NewAbsensiHandler(
         pengajuanRepo *repository.PengajuanRepository,
         configRepo *repository.AbsensiConfigRepository,
         divisiRepo *repository.DivisiRepository,
+        notifSvc *service.NotifikasiService,
 ) *AbsensiHandler {
-        return &AbsensiHandler{repo: repo, pelaksanaanRepo: pelaksanaanRepo, pengajuanRepo: pengajuanRepo, configRepo: configRepo, divisiRepo: divisiRepo}
+        return &AbsensiHandler{repo: repo, pelaksanaanRepo: pelaksanaanRepo, pengajuanRepo: pengajuanRepo, configRepo: configRepo, divisiRepo: divisiRepo, notifSvc: notifSvc}
 }
 
 // haversineM menghitung jarak antara dua koordinat GPS dalam meter (rumus Haversine)
@@ -578,6 +583,19 @@ func buildAbsensiRows(pel *models.PelaksanaanMagang, list []models.Absensi) []ab
         return rows
 }
 
+// logoPathForAbsensiPDF mengembalikan path logo PT TELPP untuk dipakai gofpdf.Image()
+func logoPathForAbsensiPDF() string {
+        for _, p := range []string{
+                "./assets/logotel.png",
+                "../artifacts/frontend/public/logotel.png",
+        } {
+                if _, err := os.Stat(p); err == nil {
+                        return p
+                }
+        }
+        return ""
+}
+
 func generateAbsensiPDF(pengajuan *models.PengajuanMagang, pel *models.PelaksanaanMagang, list []models.Absensi, hadir, izin, sakit, alpha int) *gofpdf.Fpdf {
         pdf := gofpdf.New("P", "mm", "A4", "")
         pdf.SetMargins(18, 14, 18)
@@ -589,24 +607,20 @@ func generateAbsensiPDF(pengajuan *models.PengajuanMagang, pel *models.Pelaksana
                 pageW = 174.0 // 210 - 18 - 18
         )
 
-        // ── LETTERHEAD ────────────────────────────────────────────
-        // Kotak hijau tua di kiri sebagai aksen
-        pdf.SetFillColor(22, 101, 52)
-        pdf.Rect(leftX, 14, 6, 24, "F")
-
-        // Nama perusahaan
+        // ── LETTERHEAD (logo + nama perusahaan) ────────────────────
+        if lp := logoPathForAbsensiPDF(); lp != "" {
+                pdf.Image(lp, leftX, 12, 22, 0, false, "", 0, "")
+        }
         pdf.SetTextColor(22, 101, 52)
         pdf.SetFont("Helvetica", "B", 13)
-        pdf.SetXY(27, 15)
-        pdf.CellFormat(165, 7, "PT TANJUNGENIM LESTARI PULP AND PAPER", "", 2, "L", false, 0, "")
-
-        // Sub-judul
+        pdf.SetXY(leftX+25, 14)
+        pdf.CellFormat(140, 7, "PT TANJUNGENIM LESTARI PULP AND PAPER", "", 2, "L", false, 0, "")
         pdf.SetTextColor(75, 85, 99)
         pdf.SetFont("Helvetica", "", 9)
-        pdf.SetX(27)
-        pdf.CellFormat(165, 5, "Sistem Manajemen Magang  —  e-Magang PT TELPP", "", 2, "L", false, 0, "")
-        pdf.SetX(27)
-        pdf.CellFormat(165, 5, "Muara Enim, Sumatera Selatan", "", 0, "L", false, 0, "")
+        pdf.SetX(leftX+25)
+        pdf.CellFormat(140, 5, "Sistem Manajemen Magang  —  e-Magang PT TELPP", "", 2, "L", false, 0, "")
+        pdf.SetX(leftX+25)
+        pdf.CellFormat(140, 5, "Muara Enim, Sumatera Selatan", "", 0, "L", false, 0, "")
 
         // Garis pembatas hijau
         pdf.SetDrawColor(22, 101, 52)
@@ -854,6 +868,103 @@ func generateAbsensiPDF(pengajuan *models.PengajuanMagang, pel *models.Pelaksana
         pdf.CellFormat(64, 5, "PT TanjungEnim Lestari Pulp and Paper", "", 0, "C", false, 0, "")
 
         return pdf
+}
+
+// PATCH /api/absensi/manual-pulang — HRD input jam keluar + kegiatan manual
+func (h *AbsensiHandler) InputManualPulang(c *gin.Context) {
+        var req models.AbsensiManualPulangRequest
+        if err := c.ShouldBindJSON(&req); err != nil {
+                c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "validation_error", Message: err.Error()})
+                return
+        }
+
+        hrdID := middleware.GetUserID(c)
+        var catatanManual *string
+        if req.CatatanManual != "" {
+                catatanManual = &req.CatatanManual
+        }
+
+        if err := h.repo.UpdateManualPulang(c.Request.Context(), req.PelaksanaanID, req.Tanggal, req.JamKeluar, req.Kegiatan, catatanManual, &hrdID); err != nil {
+                c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "update_failed", Message: "Gagal mengisi jam keluar: " + err.Error()})
+                return
+        }
+
+        if h.notifSvc != nil {
+                if pelaksanaanID, err := uuid.Parse(req.PelaksanaanID); err == nil {
+                        if pelaksanaan, err := h.pelaksanaanRepo.FindByID(c.Request.Context(), pelaksanaanID); err == nil {
+                                pelID := pelaksanaan.ID
+                                go h.notifSvc.KirimKeUser(context.Background(), pelaksanaan.UserID, models.RolePeserta,
+                                        "Jam Keluar Diinput oleh HRD",
+                                        fmt.Sprintf("HRD telah mengisi jam keluar manual untuk tanggal %s", req.Tanggal),
+                                        "absensi_manual", &pelID)
+                        }
+                }
+        }
+
+        c.JSON(http.StatusOK, models.SuccessResponse{Message: "Jam keluar berhasil diinput manual"})
+}
+
+// POST /api/absensi/manual — HRD input absensi manual untuk peserta
+func (h *AbsensiHandler) InputManual(c *gin.Context) {
+        var req models.AbsensiManualRequest
+        if err := c.ShouldBindJSON(&req); err != nil {
+                c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "validation_error", Message: err.Error()})
+                return
+        }
+
+        hrdID := middleware.GetUserID(c)
+
+        pelaksanaanID, err := uuid.Parse(req.PelaksanaanID)
+        if err != nil {
+                c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "invalid_id", Message: "ID pelaksanaan tidak valid"})
+                return
+        }
+
+        pelaksanaan, err := h.pelaksanaanRepo.FindByID(c.Request.Context(), pelaksanaanID)
+        if err != nil {
+                c.JSON(http.StatusNotFound, models.ErrorResponse{Error: "not_found", Message: "Data pelaksanaan tidak ditemukan"})
+                return
+        }
+
+        jamMasuk := req.JamMasuk
+        var jamKeluar *string
+        if req.JamKeluar != "" {
+                jamKeluar = &req.JamKeluar
+        }
+        var catatanManual *string
+        if req.CatatanManual != "" {
+                catatanManual = &req.CatatanManual
+        }
+
+        a := &models.Absensi{
+                PelaksanaanID: pelaksanaanID,
+                Tanggal:       req.Tanggal,
+                JamMasuk:      &jamMasuk,
+                JamKeluar:     jamKeluar,
+                Keterangan:    "hadir",
+                Kegiatan:      req.Kegiatan,
+                IsManual:      true,
+                DiinputOleh:   &hrdID,
+                CatatanManual: catatanManual,
+        }
+
+        if err := h.repo.InsertManual(c.Request.Context(), a); err != nil {
+                c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "insert_failed", Message: err.Error()})
+                return
+        }
+
+        if h.notifSvc != nil {
+                pelID := pelaksanaan.ID
+                go h.notifSvc.KirimKeUser(context.Background(), pelaksanaan.UserID, models.RolePeserta,
+                        "Absensi Diinput oleh HRD",
+                        fmt.Sprintf("HRD telah menginput absensi manual untuk tanggal %s", req.Tanggal),
+                        "absensi_manual", &pelID)
+        }
+
+        c.JSON(http.StatusCreated, models.SuccessResponse{
+                Message: "Absensi manual berhasil diinput",
+                Data:    a,
+        })
 }
 
 func parseTimeOnly(s string) time.Time {

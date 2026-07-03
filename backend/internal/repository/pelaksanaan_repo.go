@@ -19,11 +19,11 @@ func NewPelaksanaanRepository(db *pgxpool.Pool) *PelaksanaanRepository {
 
 func (r *PelaksanaanRepository) Create(ctx context.Context, p *models.PelaksanaanMagang) error {
         query := `
-                INSERT INTO pelaksanaan_magang (pengajuan_id, user_id, periode_id, tanggal_mulai, tanggal_selesai, divisi, pembimbing_id, pembimbing)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                INSERT INTO pelaksanaan_magang (pengajuan_id, user_id, periode_id, tanggal_mulai, tanggal_selesai, divisi, pembimbing_id, pembimbing, wa_pembimbing)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 RETURNING id, status, created_at, updated_at`
         return r.db.QueryRow(ctx, query,
-                p.PengajuanID, p.UserID, p.PeriodeID, p.TanggalMulai, p.TanggalSelesai, p.Divisi, p.PembimbingID, p.PembimbingNama,
+                p.PengajuanID, p.UserID, p.PeriodeID, p.TanggalMulai, p.TanggalSelesai, p.Divisi, p.PembimbingID, p.PembimbingNama, p.WAPembimbing,
         ).Scan(&p.ID, &p.Status, &p.CreatedAt, &p.UpdatedAt)
 }
 

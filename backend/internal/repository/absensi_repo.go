@@ -3,6 +3,8 @@ package repository
 import (
         "context"
         "fmt"
+        "log"
+        "time"
 
         "github.com/google/uuid"
         "github.com/jackc/pgx/v5/pgxpool"
@@ -44,7 +46,8 @@ func (r *AbsensiRepository) CheckOut(ctx context.Context, pelaksanaanID uuid.UUI
 func (r *AbsensiRepository) FindByPelaksanaanID(ctx context.Context, pelaksanaanID uuid.UUID) ([]models.Absensi, error) {
         rows, err := r.db.Query(ctx,
                 `SELECT id, pelaksanaan_id, tanggal, jam_masuk, jam_keluar, keterangan, kegiatan,
-                 ttd_pembimbing, approved_by, approved_at, catatan, created_at
+                 ttd_pembimbing, approved_by, approved_at, catatan,
+                 is_manual, diinput_oleh, catatan_manual, created_at
                  FROM absensi WHERE pelaksanaan_id=$1 ORDER BY tanggal ASC`, pelaksanaanID)
         if err != nil {
                 return nil, err
@@ -54,21 +57,36 @@ func (r *AbsensiRepository) FindByPelaksanaanID(ctx context.Context, pelaksanaan
         var list []models.Absensi
         for rows.Next() {
                 var a models.Absensi
-                rows.Scan(&a.ID, &a.PelaksanaanID, &a.Tanggal, &a.JamMasuk, &a.JamKeluar, &a.Keterangan, &a.Kegiatan,
-                        &a.TTDPembimbing, &a.ApprovedBy, &a.ApprovedAt, &a.Catatan, &a.CreatedAt)
+                var tanggalT time.Time
+                if err := rows.Scan(&a.ID, &a.PelaksanaanID, &tanggalT, &a.JamMasuk, &a.JamKeluar, &a.Keterangan, &a.Kegiatan,
+                        &a.TTDPembimbing, &a.ApprovedBy, &a.ApprovedAt, &a.Catatan,
+                        &a.IsManual, &a.DiinputOleh, &a.CatatanManual, &a.CreatedAt); err != nil {
+                        log.Printf("[absensi_repo] FindByPelaksanaanID scan error: %v", err)
+                        continue
+                }
+                a.Tanggal = tanggalT.Format("2006-01-02")
                 list = append(list, a)
+        }
+        if list == nil {
+                list = []models.Absensi{}
         }
         return list, nil
 }
 
 func (r *AbsensiRepository) FindByDate(ctx context.Context, pelaksanaanID uuid.UUID, tanggal string) (*models.Absensi, error) {
         a := &models.Absensi{}
+        var tanggalT time.Time
         err := r.db.QueryRow(ctx,
                 `SELECT id, pelaksanaan_id, tanggal, jam_masuk, jam_keluar, keterangan, kegiatan,
-                 ttd_pembimbing, approved_by, approved_at, catatan, created_at
+                 ttd_pembimbing, approved_by, approved_at, catatan,
+                 is_manual, diinput_oleh, catatan_manual, created_at
                  FROM absensi WHERE pelaksanaan_id=$1 AND tanggal=$2`, pelaksanaanID, tanggal).
-                Scan(&a.ID, &a.PelaksanaanID, &a.Tanggal, &a.JamMasuk, &a.JamKeluar, &a.Keterangan, &a.Kegiatan,
-                        &a.TTDPembimbing, &a.ApprovedBy, &a.ApprovedAt, &a.Catatan, &a.CreatedAt)
+                Scan(&a.ID, &a.PelaksanaanID, &tanggalT, &a.JamMasuk, &a.JamKeluar, &a.Keterangan, &a.Kegiatan,
+                        &a.TTDPembimbing, &a.ApprovedBy, &a.ApprovedAt, &a.Catatan,
+                        &a.IsManual, &a.DiinputOleh, &a.CatatanManual, &a.CreatedAt)
+        if err == nil {
+                a.Tanggal = tanggalT.Format("2006-01-02")
+        }
         return a, err
 }
 
@@ -88,6 +106,7 @@ func (r *AbsensiRepository) GetRekapAll(ctx context.Context) ([]models.RekapAbse
                 pj.asal_institusi,
                 pj.kategori_magang,
                 pl.divisi,
+                pl.wa_pembimbing,
                 pl.tanggal_mulai,
                 pl.tanggal_selesai,
                 pl.status,
@@ -101,7 +120,7 @@ func (r *AbsensiRepository) GetRekapAll(ctx context.Context) ([]models.RekapAbse
         LEFT JOIN absensi a ON a.pelaksanaan_id = pl.id
         WHERE pl.status NOT IN ('menunggu_mulai')
         GROUP BY pl.id, pj.nama_lengkap, pj.asal_institusi, pj.kategori_magang,
-                 pl.divisi, pl.tanggal_mulai, pl.tanggal_selesai, pl.status
+                 pl.divisi, pl.wa_pembimbing, pl.tanggal_mulai, pl.tanggal_selesai, pl.status
         ORDER BY pl.tanggal_mulai DESC`
 
         rows, err := r.db.Query(ctx, query)
@@ -115,7 +134,7 @@ func (r *AbsensiRepository) GetRekapAll(ctx context.Context) ([]models.RekapAbse
                 var row models.RekapAbsensiRow
                 if err := rows.Scan(
                         &row.PelaksanaanID, &row.NamaLengkap, &row.AsalInstitusi, &row.KategoriMagang,
-                        &row.Divisi, &row.TanggalMulai, &row.TanggalSelesai, &row.Status,
+                        &row.Divisi, &row.WAPembimbing, &row.TanggalMulai, &row.TanggalSelesai, &row.Status,
                         &row.Hadir, &row.Izin, &row.Sakit, &row.Alpha, &row.PendingApproval,
                 ); err != nil {
                         return nil, err
@@ -126,6 +145,20 @@ func (r *AbsensiRepository) GetRekapAll(ctx context.Context) ([]models.RekapAbse
                 list = []models.RekapAbsensiRow{}
         }
         return list, nil
+}
+
+// UpdateManualPulang — HRD mengisi jam keluar + kegiatan untuk absensi yang sudah ada
+func (r *AbsensiRepository) UpdateManualPulang(ctx context.Context, pelaksanaanID, tanggal, jamKeluar, kegiatan string, catatanManual *string, hrdID *uuid.UUID) error {
+        _, err := r.db.Exec(ctx, `
+                UPDATE absensi
+                SET jam_keluar = $1, kegiatan = $2, is_manual = true,
+                    diinput_oleh = $3, catatan_manual = $4
+                WHERE pelaksanaan_id = $5::uuid
+                  AND DATE(tanggal) = $6::date
+                  AND jam_masuk IS NOT NULL
+                  AND jam_keluar IS NULL`,
+                jamKeluar, kegiatan, hrdID, catatanManual, pelaksanaanID, tanggal)
+        return err
 }
 
 func (r *AbsensiRepository) CountByPelaksanaan(ctx context.Context, pelaksanaanID uuid.UUID) (hadir, izin, sakit, alpha int) {
@@ -176,7 +209,27 @@ func (r *AbsensiRepository) GetPesertaBelumAbsenMasuk(ctx context.Context, tangg
         return list, nil
 }
 
-// GetPesertaBelumAbsenKeluar — peserta aktif yang sudah check-in tapi BELUM check-out pada tanggal tertentu
+// InsertManual — HRD menginput absensi manual untuk peserta.
+// Jika record sudah ada (pelaksanaan_id + tanggal sama), lakukan UPDATE jam_masuk, keterangan,
+// is_manual, diinput_oleh, catatan_manual — preservasi jam_keluar & kegiatan yang sudah ada.
+func (r *AbsensiRepository) InsertManual(ctx context.Context, a *models.Absensi) error {
+        query := `
+                INSERT INTO absensi (pelaksanaan_id, tanggal, jam_masuk, jam_keluar, keterangan, kegiatan, is_manual, diinput_oleh, catatan_manual)
+                VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8)
+                ON CONFLICT (pelaksanaan_id, tanggal)
+                DO UPDATE SET
+                        jam_masuk      = EXCLUDED.jam_masuk,
+                        keterangan     = EXCLUDED.keterangan,
+                        is_manual      = true,
+                        diinput_oleh   = EXCLUDED.diinput_oleh,
+                        catatan_manual = EXCLUDED.catatan_manual
+                RETURNING id, created_at`
+        return r.db.QueryRow(ctx, query,
+                a.PelaksanaanID, a.Tanggal, a.JamMasuk, a.JamKeluar,
+                a.Keterangan, a.Kegiatan, a.DiinputOleh, a.CatatanManual).
+                Scan(&a.ID, &a.CreatedAt)
+}
+
 func (r *AbsensiRepository) GetPesertaBelumAbsenKeluar(ctx context.Context, tanggal string) ([]PesertaReminderInfo, error) {
         rows, err := r.db.Query(ctx, `
                 SELECT u.id, u.nama_lengkap

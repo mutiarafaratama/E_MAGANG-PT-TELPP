@@ -365,8 +365,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import api from "@/lib/api";
+import { useAppWS } from "@/composables/useAppWS";
+
+const emit = defineEmits<{ (e: "refresh"): void }>();
 
 const props = defineProps<{
   pelaksanaan: any;
@@ -479,19 +482,36 @@ const statusSteps = computed(() => {
 
 function cetakPDF() { window.print(); }
 
-watch(
-  () => props.pelaksanaan?.id,
-  async (pelID) => {
-    if (!pelID) return;
-    loading.value = true;
-    try {
-      const res = await api.get(`/api/penilaian/${pelID}`);
-      penilaian.value = res.data ?? null;
-    } catch { penilaian.value = null; }
-    finally { loading.value = false; }
-  },
-  { immediate: true }
-);
+async function fetchPenilaian() {
+  const pelID = props.pelaksanaan?.id;
+  if (!pelID) return;
+  loading.value = true;
+  try {
+    const res = await api.get(`/api/penilaian/${pelID}`);
+    penilaian.value = res.data ?? null;
+  } catch { penilaian.value = null; }
+  finally { loading.value = false; }
+}
+
+watch(() => props.pelaksanaan?.id, fetchPenilaian, { immediate: true });
+
+const { connect: wsConnect, disconnect: wsDisconnect, subscribe: wsSubscribe } = useAppWS();
+let wsUnsub: (() => void) | null = null;
+
+onMounted(() => {
+  wsConnect();
+  wsUnsub = wsSubscribe((msg: any) => {
+    if (["notifikasi", "badge_update"].includes(msg.type)) {
+      fetchPenilaian();
+      emit("refresh");
+    }
+  });
+});
+
+onUnmounted(() => {
+  wsUnsub?.();
+  wsDisconnect();
+});
 </script>
 
 <style scoped>
@@ -593,29 +613,68 @@ watch(
 /* ── Footer ── */
 .footer-note { font-size:10.5px; color:#9ca3af; text-align:center; margin-top:12px; border-top:1px solid #f3f4f6; padding-top:10px; }
 
-/* ── Responsive: info-table 1 kolom di mobile ── */
+/* ── Responsive: mobile ── */
 @media (max-width: 640px) {
+  /* Kurangi padding lembar agar lebih lebar */
+  .lembar { padding: 14px 12px; }
+
+  /* Kop: nama perusahaan lebih kecil agar tidak wrap terlalu banyak */
+  .kop-logo { height: 40px; }
+  .kop-nama { font-size: 12.5px; }
+  .kop-sub  { font-size: 10.5px; }
+  .kop-judul { font-size: 11.5px; }
+
+  /* Info table: setiap tr tampil sebagai 2 baris stacked (kiri & kanan) */
   .info-table,
   .info-table tbody { display: block; }
 
   .info-table tr {
     display: grid;
-    grid-template-columns: auto auto 1fr;
-    margin-bottom: 1px;
+    grid-template-columns: minmax(100px, max-content) 14px 1fr;
+    column-gap: 0;
+    margin-bottom: 0;
   }
 
-  /* kolom kiri (1-3) → baris grid 1 */
+  /* Kelompok kiri (td 1-3) → baris grid 1 */
   .info-table td:nth-child(1) { grid-column: 1; grid-row: 1; }
   .info-table td:nth-child(2) { grid-column: 2; grid-row: 1; }
   .info-table td:nth-child(3) { grid-column: 3; grid-row: 1; padding-right: 0; }
 
-  /* kolom kanan (4-6) → baris grid 2 (stacked di bawah) */
+  /* Kelompok kanan (td 4-6) → baris grid 2, stacked di bawah */
   .info-table td:nth-child(4) { grid-column: 1; grid-row: 2; }
   .info-table td:nth-child(5) { grid-column: 2; grid-row: 2; }
   .info-table td:nth-child(6) { grid-column: 3; grid-row: 2; padding-right: 0; }
 
-  /* label kiri sedikit lebih lebar di mobile */
-  .it-label { width: auto; min-width: 110px; }
+  /* Label: biarkan auto-width, boleh wrap */
+  .it-label { width: auto; min-width: unset; white-space: normal; font-size: 11px; }
+  .it-val   { font-size: 11.5px; }
+
+  /* Nilai table: kurangi lebar kolom fixed agar muat di layar sempit */
+  .col-no    { width: 26px; }
+  .col-angka { width: 68px; }
+  .col-ket   { width: 96px; }
+
+  .nilai-table th { font-size: 9.5px; padding: 4px 3px; }
+  .nilai-table td { font-size: 10.5px; padding: 4px 3px; }
+  .th-no, .td-no  { padding-left: 2px; padding-right: 2px; }
+  .td-angka { font-size: 12px; }
+  .td-ket   { font-size: 10px; }
+  .td-final { font-size: 13px !important; }
+  .tr-section .td-section { font-size: 10px; padding: 4px 6px; }
+
+  /* Keterangan nilai: tiap item baris sendiri */
+  .ket-row  { flex-direction: column; gap: 2px; }
+  .ket-sep  { display: none; }
+  .ket-item { font-size: 10.5px; }
+  .ket-note { font-size: 10px; }
+
+  /* TTD: lebih kecil agar muat berdampingan */
+  .ttd-box   { width: 130px; }
+  .ttd-title { font-size: 10.5px; }
+  .ttd-name  { font-size: 10.5px; }
+  .ttd-space { height: 48px; }
+
+  .footer-note { font-size: 9.5px; }
 }
 
 /* ── PRINT ── */

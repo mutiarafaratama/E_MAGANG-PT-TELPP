@@ -2,6 +2,7 @@ package service
 
 import (
         "context"
+        "log"
         "time"
 
         "github.com/google/uuid"
@@ -58,6 +59,9 @@ func (s *NotifikasiService) Kirim(ctx context.Context, userID uuid.UUID, judul, 
         go func() {
                 bgCtx := context.Background()
                 token := s.repo.GetFCMToken(bgCtx, userID)
+                if token == "" {
+                        log.Printf("[Notif] ⚠️  FCM skip user %s — belum ada token tersimpan di DB (user belum izinkan push notif di browser)", userID)
+                }
                 s.fcm.Send(bgCtx, token, judul, pesan, map[string]string{
                         "tipe":  tipe,
                         "route": route,
@@ -99,6 +103,9 @@ func (s *NotifikasiService) KirimKeUser(ctx context.Context, userID uuid.UUID, r
         go func() {
                 bgCtx := context.Background()
                 token := s.repo.GetFCMToken(bgCtx, userID)
+                if token == "" {
+                        log.Printf("[Notif] ⚠️  FCM skip user %s — belum ada token tersimpan di DB (user belum izinkan push notif di browser)", userID)
+                }
                 s.fcm.Send(bgCtx, token, judul, pesan, map[string]string{
                         "tipe":  tipe,
                         "route": route,

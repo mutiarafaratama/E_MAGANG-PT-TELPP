@@ -135,9 +135,9 @@
         </button>
       </div>
 
-      <div v-else-if="absensiState === 'missed_checkin' || absensiState === 'missed_checkout'" class="absensi-panel">
+      <div v-else-if="absensiState === 'missed_checkin'" class="absensi-panel">
         <div class="ap-icon ap-icon--miss"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
-        <div class="ap-title">{{ absensiState === 'missed_checkin' ? 'Sesi Absen Masuk Terlewat' : 'Sesi Absen Pulang Terlewat' }}</div>
+        <div class="ap-title">Sesi Absen Masuk Terlewat</div>
         <div class="ap-desc">Jika ada keterangan izin atau sakit, ajukan di bawah ini.</div>
         <button v-if="pelaksanaanSaya?.status === 'aktif'" class="btn-ajukan" style="margin-top:4px" @click="openIzinModal">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
@@ -197,10 +197,13 @@
               <td class="td-jam">{{ row.jamMasuk }}</td>
               <td class="td-jam">{{ row.jamKeluar }}</td>
               <td>
-                <span v-if="row.status !== 'belum'" :class="['ket-badge', `ket-badge--${row.status}`]">
-                  {{ ({ hadir:'Hadir', izin:'Izin', sakit:'Sakit', alpha:'Alpha' } as Record<string,string>)[row.status] ?? row.status }}
-                </span>
-                <span v-else class="ket-badge ket-badge--belum">–</span>
+                <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start">
+                  <span v-if="row.status !== 'belum'" :class="['ket-badge', `ket-badge--${row.status}`]">
+                    {{ ({ hadir:'Hadir', izin:'Izin', sakit:'Sakit', alpha:'Alpha' } as Record<string,string>)[row.status] ?? row.status }}
+                  </span>
+                  <span v-else class="ket-badge ket-badge--belum">–</span>
+                  <span v-if="row.isManual" class="ket-badge-manual">HRD</span>
+                </div>
               </td>
               <td class="td-kegiatan">
                 <ul v-if="kegiatanPoin(row.kegiatan).length" class="kegiatan-ul">
@@ -457,6 +460,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import api from "@/lib/api";
+import { useAppWS } from "@/composables/useAppWS";
 
 type AbsensiCfg = {
   jam_masuk_buka: string; jam_masuk_tutup: string;
@@ -589,7 +593,9 @@ const absensiState = computed(() => {
   if (ta?.jam_masuk) {
     if (now >= pulangBuka && now <= pulangTutup) return 'checkout_open';
     if (now < pulangBuka) return 'waiting_pulang';
-    return 'missed_checkout';
+    // Sudah masuk tapi jam pulang terlewat — tetap tampilkan tombol checkout
+    // (peserta harus tetap bisa absen pulang meski terlambat, termasuk setelah masuk manual HRD)
+    return 'checkout_open';
   }
   if (now >= masukBuka && now <= masukTutup) return 'checkin_open';
   if (now < masukBuka) return 'locked';
@@ -625,6 +631,7 @@ const tabelHarian = computed(() => {
         kegiatan:  absensi?.kegiatan   || '',
         status,
         isToday: dateStr === today,
+        isManual: absensi?.is_manual ?? false,
       });
     }
     cur.setUTCDate(cur.getUTCDate() + 1);
@@ -1019,15 +1026,27 @@ function closePDFModal() {
   showPDFModal.value = false;
 }
 
+const { connect: wsConnect, disconnect: wsDisconnect, subscribe: wsSubscribe } = useAppWS();
+let wsUnsub: (() => void) | null = null;
+
 onMounted(() => {
   fetchAbsensi();
   fetchIzin();
   clockTimer = setInterval(() => { nowWIB.value = getNowWIB(); }, 1000);
+
+  wsConnect();
+  wsUnsub = wsSubscribe((msg: any) => {
+    if (msg.type === 'notifikasi' && msg.data?.tipe === 'absensi_manual') {
+      fetchAbsensi();
+    }
+  });
 });
 
 onUnmounted(() => {
   if (clockTimer) clearInterval(clockTimer);
   if (pdfBlobUrl.value) URL.revokeObjectURL(pdfBlobUrl.value);
+  if (wsUnsub) wsUnsub();
+  wsDisconnect();
 });
 </script>
 
@@ -1142,6 +1161,7 @@ onUnmounted(() => {
 .ket-badge--sakit { background: #f0fdf4; color: #0d2818; border: 1px solid #bbf7d0; }
 .ket-badge--alpha { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
 .ket-badge--belum { color: #d1d5db; }
+.ket-badge-manual { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; letter-spacing: 0.03em; white-space: nowrap; }
 
 /* ── Modal base ── */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; backdrop-filter: blur(2px); }

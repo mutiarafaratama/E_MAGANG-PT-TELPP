@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { getToken, onMessage } from 'firebase/messaging'
-import { getFirebaseMessaging } from '@/lib/firebase'
+import { messaging } from '@/lib/firebase'
 import api from '@/lib/api'
 
 const fcmToken = ref(null)
@@ -20,9 +20,6 @@ export function useFCM() {
 
   async function initToken() {
     try {
-      const messaging = await getFirebaseMessaging()
-      if (!messaging) return null
-
       const swReg = await navigator.serviceWorker.ready
       const token = await getToken(messaging, {
         vapidKey: VAPID_KEY,
@@ -30,6 +27,7 @@ export function useFCM() {
       })
       if (token) {
         fcmToken.value = token
+        // Kirim token ke backend agar bisa push notif
         try { await api.post('/api/notifikasi/fcm-token', { token }) } catch {}
         return token
       }
@@ -39,19 +37,19 @@ export function useFCM() {
     return null
   }
 
-  async function listenForeground(onNotif) {
-    const messaging = await getFirebaseMessaging()
-    if (!messaging) return () => {}
+  // Tangkap notif saat app terbuka (foreground)
+  function listenForeground(onNotif) {
     return onMessage(messaging, (payload) => {
       const { title, body } = payload.notification || {}
       if (onNotif) {
         onNotif({ title, body, data: payload.data })
       } else if (title && Notification.permission === 'granted') {
-        new Notification(title, { body: body || '', icon: '/logotel.png' })
+        new Notification(title, { body: body || '', icon: '/logo_emagang.png' })
       }
     })
   }
 
+  // Panggil ini sekali saat user login (di dashboard masing-masing)
   async function init(onNotif) {
     const granted = await requestPermission()
     if (!granted) return null

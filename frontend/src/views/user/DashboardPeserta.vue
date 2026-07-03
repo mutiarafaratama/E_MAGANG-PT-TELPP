@@ -104,12 +104,12 @@
 
       <!-- ── NILAI ── -->
       <template v-else-if="activeTab === 'nilai'">
-        <NilaiView :pelaksanaan="pelaksanaan" :pengajuan="pengajuan" />
+        <NilaiView :pelaksanaan="pelaksanaan" :pengajuan="pengajuan" @refresh="fetchPelaksanaan" />
       </template>
 
       <!-- ── SERTIFIKAT ── -->
       <template v-else-if="activeTab === 'sertifikat'">
-        <SertifikatView :pelaksanaan="pelaksanaan" :pengajuan="pengajuan" />
+        <SertifikatView :pelaksanaan="pelaksanaan" :pengajuan="pengajuan" @refresh="fetchPelaksanaan" />
       </template>
 
       <!-- ── PROFIL ── -->

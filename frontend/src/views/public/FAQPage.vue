@@ -4,7 +4,7 @@
     <nav class="navbar" :class="{ 'navbar--scrolled': navScrolled }">
       <div class="container navbar__inner">
         <a href="/" class="navbar__brand">
-          <img src="/logotel.png" alt="PT TELPP" class="navbar__logo" />
+          <img src="/logo_emagang.png" alt="PT TELPP" class="navbar__logo" />
           <span>e-Magang <strong>PT TELPP</strong></span>
         </a>
         <div class="navbar__links">
@@ -163,7 +163,7 @@
     <footer class="footer">
       <div class="container footer__inner">
         <a href="/" class="footer__brand">
-          <img src="/logotel.png" alt="PT TELPP" class="footer__logo" />
+          <img src="/logo_emagang.png" alt="e-Magang" class="footer__logo" />
           <span>e-Magang <strong>PT TELPP</strong></span>
         </a>
         <p class="footer__copy">© 2026 e-Magang PT TELPP · PT TanjungEnim Lestari Pulp and Paper</p>

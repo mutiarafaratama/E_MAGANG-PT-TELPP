@@ -231,6 +231,16 @@
                   {{ fmtDate(selectedRow.tanggal_mulai) }} – {{ fmtDate(selectedRow.tanggal_selesai) }}
                 </span>
               </div>
+              <!-- WA Pembimbing shortcut -->
+              <a v-if="selectedRow.wa_pembimbing"
+                :href="`https://wa.me/${selectedRow.wa_pembimbing.replace(/\D/g,'').replace(/^0/,'62')}`"
+                target="_blank" rel="noopener" class="sp-wa-link" title="Konfirmasi ke pembimbing via WhatsApp">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" fill="#25D366"/>
+                  <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.954-1.418A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" stroke="#25D366" stroke-width="1.5"/>
+                </svg>
+                Konfirmasi Pembimbing
+              </a>
             </div>
             <button class="sp-close" @click="selectedRow = null">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
@@ -270,7 +280,7 @@
             </div>
           </div>
 
-          <!-- Aksi PDF -->
+          <!-- Aksi PDF + Input Manual -->
           <div class="sp-actions">
             <button class="sp-btn-pdf"
               :disabled="pdfLoadingId === selectedRow.pelaksanaan_id"
@@ -280,6 +290,10 @@
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="2"/><polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="2"/><line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                 Unduh PDF Rekap
               </template>
+            </button>
+            <button class="sp-btn-manual" @click="openManualModal">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+              Input Absensi Manual
             </button>
           </div>
 
@@ -319,10 +333,13 @@
                   <td class="td-time">{{ row.jamMasuk }}</td>
                   <td class="td-time">{{ row.jamKeluar }}</td>
                   <td>
-                    <span v-if="row.status !== 'belum'" :class="['ket-badge', `ket-badge--${row.status}`]">
-                      {{ ({ hadir:'Hadir', izin:'Izin', sakit:'Sakit', alpha:'Alpha' } as Record<string,string>)[row.status] ?? row.status }}
-                    </span>
-                    <span v-else class="ket-badge ket-badge--belum">–</span>
+                    <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start">
+                      <span v-if="row.status !== 'belum'" :class="['ket-badge', `ket-badge--${row.status}`]">
+                        {{ ({ hadir:'Hadir', izin:'Izin', sakit:'Sakit', alpha:'Alpha' } as Record<string,string>)[row.status] ?? row.status }}
+                      </span>
+                      <span v-else class="ket-badge ket-badge--belum">–</span>
+                      <span v-if="row.isManual" class="ket-badge-manual" :title="row.catatanManual ?? 'Input manual oleh HRD'">Manual</span>
+                    </div>
                   </td>
                   <td class="td-kegiatan">
                     <ul v-if="kegiatanPoin(row.kegiatan).length" class="kegiatan-ul">
@@ -396,6 +413,75 @@
     </div>
   </Teleport>
 
+  <!-- ── Modal Input Absensi Manual ───────────────────────── -->
+  <Teleport to="body">
+    <Transition name="modal-fade">
+      <div v-if="showManualModal" class="modal-backdrop" @click.self="showManualModal = false">
+        <div class="modal-box">
+          <div class="modal-box__header">
+            <div class="modal-box__title">Input Absensi Manual</div>
+            <button class="modal-close-btn" @click="showManualModal = false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <div class="modal-sub">Peserta: <strong>{{ selectedRow?.nama_lengkap }}</strong></div>
+
+          <!-- Jenis toggle -->
+          <div class="jenis-toggle">
+            <button :class="['jenis-btn', manualForm.jenis === 'masuk' ? 'jenis-btn--active' : '']"
+              @click="manualForm.jenis = 'masuk'; manualError = ''">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="10 17 15 12 10 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="15" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Jam Masuk
+            </button>
+            <button :class="['jenis-btn', manualForm.jenis === 'pulang' ? 'jenis-btn--active' : '']"
+              @click="manualForm.jenis = 'pulang'; manualError = ''">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="16 17 21 12 16 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="21" y1="12" x2="9" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Jam Pulang
+            </button>
+          </div>
+
+          <div class="modal-field">
+            <label class="modal-label">Tanggal <span style="color:#dc2626">*</span></label>
+            <input v-model="manualForm.tanggal" type="date" class="modal-input" />
+          </div>
+
+          <!-- Masuk: hanya jam masuk -->
+          <div v-if="manualForm.jenis === 'masuk'" class="modal-field">
+            <label class="modal-label">Jam Masuk <span style="color:#dc2626">*</span></label>
+            <input v-model="manualForm.jam_masuk" type="time" class="modal-input" />
+          </div>
+
+          <!-- Pulang: jam keluar + kegiatan -->
+          <template v-if="manualForm.jenis === 'pulang'">
+            <div class="modal-field">
+              <label class="modal-label">Jam Keluar <span style="color:#dc2626">*</span></label>
+              <input v-model="manualForm.jam_keluar" type="time" class="modal-input" />
+            </div>
+            <div class="modal-field">
+              <label class="modal-label">Kegiatan</label>
+              <textarea v-model="manualForm.kegiatan" class="modal-textarea" rows="3"
+                placeholder="Tulis kegiatan yang dilakukan hari ini"></textarea>
+            </div>
+          </template>
+
+          <div class="modal-field">
+            <label class="modal-label">Catatan / Alasan</label>
+            <input v-model="manualForm.catatan_manual" type="text" class="modal-input"
+              placeholder="Contoh: Peserta lupa absen, konfirmasi via WA" />
+          </div>
+          <div v-if="manualError" class="modal-error">{{ manualError }}</div>
+          <div class="modal-actions" style="margin-top:18px">
+            <button class="btn-cancel" @click="showManualModal = false" :disabled="submittingManual">Batal</button>
+            <button class="btn-confirm" @click="submitManual" :disabled="submittingManual || !manualForm.tanggal">
+              <span v-if="submittingManual" class="btn-spinner btn-spinner--white"></span>
+              {{ submittingManual ? 'Menyimpan...' : 'Simpan Absensi' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
   <!-- ── Modal Bukti Surat Sakit ───────────────────────────── -->
   <Teleport to="body">
     <div v-if="buktiModal.show" class="bukti-overlay" @click.self="closeBukti">
@@ -427,8 +513,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import api from "@/lib/api";
+import { useAppWS } from "@/composables/useAppWS";
 
 interface RekapRow {
   pelaksanaan_id:  string;
@@ -436,6 +523,7 @@ interface RekapRow {
   asal_institusi:  string;
   kategori_magang: string;
   divisi:          string | null;
+  wa_pembimbing:   string | null;
   pembimbing:      string | null;
   tanggal_mulai:   string;
   tanggal_selesai: string;
@@ -447,12 +535,14 @@ interface RekapRow {
   pending_approval: number;
 }
 interface AbsensiItem {
-  id:         string;
-  tanggal:    string;
-  jam_masuk:  string | null;
-  jam_keluar: string | null;
-  keterangan: string;
-  kegiatan:   string | null;
+  id:             string;
+  tanggal:        string;
+  jam_masuk:      string | null;
+  jam_keluar:     string | null;
+  keterangan:     string;
+  kegiatan:       string | null;
+  is_manual:      boolean;
+  catatan_manual: string | null;
 }
 interface IzinSakitItem {
   id:           string;
@@ -506,6 +596,19 @@ const buktiModal = ref<{ show: boolean; url: string; type: 'image' | 'pdf' | 'ot
 const showPDFModal  = ref(false);
 const pdfBlobUrl    = ref<string>("");
 const pdfLoadingId  = ref<string | null>(null);
+
+// ── Input Absensi Manual state ────────────────────────────────
+const showManualModal  = ref(false);
+const submittingManual = ref(false);
+const manualError      = ref("");
+const manualForm = ref({
+  jenis:          "masuk" as "masuk" | "pulang",
+  tanggal:        "",
+  jam_masuk:      "08:00",
+  jam_keluar:     "16:00",
+  kegiatan:       "",
+  catatan_manual: "",
+});
 
 const izinFilters = [
   { key: "pending",   label: "Menunggu" },
@@ -567,6 +670,8 @@ const tabelHarian = computed(() => {
         kegiatan:  absensi?.kegiatan || '',
         status,
         isToday:   dateStr === todayStr,
+        isManual:  absensi?.is_manual ?? false,
+        catatanManual: absensi?.catatan_manual ?? null,
       });
     }
     cur.setUTCDate(cur.getUTCDate() + 1);
@@ -580,6 +685,11 @@ async function fetchRekap() {
   try {
     const r = await api.get("/api/absensi/rekap");
     rows.value = Array.isArray(r.data?.data) ? r.data.data : [];
+    // Sinkronisasi selectedRow agar counter hadir/izin/sakit/alpha ikut update
+    if (selectedRow.value) {
+      const updated = rows.value.find(r => r.pelaksanaan_id === selectedRow.value!.pelaksanaan_id);
+      if (updated) selectedRow.value = updated;
+    }
   } catch (e: any) {
     error.value = e.response?.data?.message ?? "Gagal memuat data rekap";
   } finally { loading.value = false; }
@@ -607,6 +717,65 @@ async function openDetail(row: RekapRow) {
   } catch (e: any) {
     detailError.value = e.response?.data?.message ?? "Gagal memuat detail absensi";
   } finally { detailLoading.value = false; }
+}
+
+// ── Input Absensi Manual ─────────────────────────────────────
+function openManualModal() {
+  manualForm.value = {
+    jenis:          "masuk",
+    tanggal:        new Date().toISOString().slice(0, 10),
+    jam_masuk:      "08:00",
+    jam_keluar:     "16:00",
+    kegiatan:       "",
+    catatan_manual: "",
+  };
+  manualError.value    = "";
+  showManualModal.value = true;
+}
+
+async function submitManual() {
+  if (!selectedRow.value) return;
+  const jenis = manualForm.value.jenis;
+  if (!manualForm.value.tanggal) {
+    manualError.value = "Tanggal wajib diisi";
+    return;
+  }
+  if (jenis === "masuk" && !manualForm.value.jam_masuk) {
+    manualError.value = "Jam masuk wajib diisi";
+    return;
+  }
+  if (jenis === "pulang" && !manualForm.value.jam_keluar) {
+    manualError.value = "Jam keluar wajib diisi";
+    return;
+  }
+  submittingManual.value = true;
+  manualError.value = "";
+  try {
+    if (jenis === "masuk") {
+      await api.post("/api/absensi/manual", {
+        pelaksanaan_id: selectedRow.value.pelaksanaan_id,
+        tanggal:        manualForm.value.tanggal,
+        jam_masuk:      manualForm.value.jam_masuk,
+        catatan_manual: manualForm.value.catatan_manual.trim(),
+      });
+    } else {
+      await api.patch("/api/absensi/manual-pulang", {
+        pelaksanaan_id: selectedRow.value.pelaksanaan_id,
+        tanggal:        manualForm.value.tanggal,
+        jam_keluar:     manualForm.value.jam_keluar,
+        kegiatan:       manualForm.value.kegiatan.trim(),
+        catatan_manual: manualForm.value.catatan_manual.trim(),
+      });
+    }
+    showManualModal.value = false;
+    showToast("Absensi manual berhasil diinput");
+    await openDetail(selectedRow.value);
+    fetchRekap();
+  } catch (e: any) {
+    manualError.value = e.response?.data?.message ?? "Gagal menyimpan absensi manual";
+  } finally {
+    submittingManual.value = false;
+  }
 }
 
 // ── PDF modal ────────────────────────────────────────────────
@@ -718,9 +887,28 @@ function statusClass(s: string) {
   return "sp-badge sp-badge--gray";
 }
 
+// ── WebSocket realtime ────────────────────────────────────────
+const { connect: wsConnect, disconnect: wsDisconnect, subscribe: wsSubscribe } = useAppWS();
+let wsUnsub: (() => void) | null = null;
+
 onMounted(() => {
   fetchRekap();
   fetchIzinSakit();
+
+  wsConnect();
+  wsUnsub = wsSubscribe((msg: any) => {
+    if (msg.type === 'notifikasi' && msg.data?.tipe === 'absensi_manual') {
+      fetchRekap();
+      if (selectedRow.value) {
+        openDetail(selectedRow.value);
+      }
+    }
+  });
+});
+
+onUnmounted(() => {
+  if (wsUnsub) wsUnsub();
+  wsDisconnect();
 });
 </script>
 
@@ -746,7 +934,7 @@ onMounted(() => {
 .stat-chip__lbl { font-size: 10.5px; color: #9ca3af; font-weight: 500; }
 .stat-chip--green .stat-chip__val { color: #16a34a; }
 .stat-chip--yellow .stat-chip__val { color: #ca8a04; }
-.stat-chip--blue .stat-chip__val { color: #2563eb; }
+.stat-chip--blue .stat-chip__val { color: #1a5c20; }
 .stat-chip--red .stat-chip__val { color: #dc2626; }
 
 .table-wrap { overflow-x: auto; }
@@ -759,12 +947,12 @@ onMounted(() => {
 .name-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg,#48AF4A,#2d7a2e); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .name-text { font-size: 13px; font-weight: 600; color: #111827; }
 .name-sub  { font-size: 11.5px; color: #9ca3af; }
-.tag { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; border-radius: 100px; font-size: 11.5px; font-weight: 600; padding: 3px 9px; }
+.tag { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; border-radius: 100px; font-size: 11.5px; font-weight: 600; padding: 3px 9px; }
 
 .abs-num { font-size: 14px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
 .abs-num--green  { color: #16a34a; background: #f0fdf4; }
 .abs-num--yellow { color: #ca8a04; background: #fefce8; }
-.abs-num--blue   { color: #2563eb; background: #eff6ff; }
+.abs-num--blue   { color: #1a5c20; background: #f0fdf4; }
 .abs-num--red    { color: #dc2626; background: #fff1f2; }
 
 .pct-bar-wrap { width: 60px; margin: 0 auto 3px; }
@@ -773,8 +961,8 @@ onMounted(() => {
 .pct-label { font-size: 11px; font-weight: 600; color: #374151; }
 
 .sp-badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 100px; }
-.sp-badge--green  { background: #f0fdf4; color: #15803d; border: 1px solid #86efac; }
-.sp-badge--blue   { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.sp-badge--green  { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; }
+.sp-badge--blue   { background: #f0fdf4; color: #0d2818; border: 1px solid #bbf7d0; }
 .sp-badge--orange { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
 .sp-badge--gray   { background: #f9fafb; color: #6b7280; border: 1px solid #e5e7eb; }
 
@@ -783,29 +971,29 @@ onMounted(() => {
 .btn-aksi:disabled { opacity: .5; cursor: not-allowed; }
 .btn-aksi--ghost { background: #f9fafb; color: #374151; border-color: #e5e7eb; }
 .btn-aksi--ghost:hover:not(:disabled) { background: #f0fdf4; color: #16a34a; border-color: #bbf7d0; }
-.btn-aksi--green { background: #f0fdf4; color: #15803d; border-color: #86efac; }
+.btn-aksi--green { background: #f0fdf4; color: #16a34a; border-color: #86efac; }
 .btn-aksi--green:hover:not(:disabled) { background: #dcfce7; }
 .btn-aksi--red   { background: #fff1f2; color: #be123c; border-color: #fecdd3; }
 .btn-aksi--red:hover:not(:disabled) { background: #ffe4e6; }
-.btn-aksi--blue  { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; text-decoration: none; }
-.btn-aksi--blue:hover:not(:disabled) { background: #dbeafe; }
+.btn-aksi--blue  { background: #f0fdf4; color: #0d2818; border-color: #bbf7d0; text-decoration: none; }
+.btn-aksi--blue:hover:not(:disabled) { background: #dcfce7; }
 
-.btn-spinner { width: 11px; height: 11px; border: 2px solid rgba(29,78,216,.2); border-top-color: #1d4ed8; border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
-.btn-spinner--green { border-color: rgba(21,128,61,.2); border-top-color: #15803d; }
+.btn-spinner { width: 11px; height: 11px; border: 2px solid rgba(29,78,216,.2); border-top-color: #0d2818; border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
+.btn-spinner--green { border-color: rgba(21,128,61,.2); border-top-color: #16a34a; }
 
 .jenis-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 100px; }
 .jenis-badge--izin  { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
-.jenis-badge--sakit { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.jenis-badge--sakit { background: #f0fdf4; color: #0d2818; border: 1px solid #bbf7d0; }
 
 .alasan-cell { font-size: 12.5px; color: #6b7280; max-width: 200px; }
 
 .status-badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 100px; }
 .status-badge--pending { background: #fef9c3; color: #a16207; border: 1px solid #fde047; }
-.status-badge--ok      { background: #f0fdf4; color: #15803d; border: 1px solid #86efac; }
+.status-badge--ok      { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; }
 .status-badge--tolak   { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
 
-.bukti-link { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 100px; padding: 2px 8px; white-space: nowrap; cursor: pointer; font-family: inherit; }
-.bukti-link:hover { background: #dbeafe; }
+.bukti-link { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #1a5c20; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 100px; padding: 2px 8px; white-space: nowrap; cursor: pointer; font-family: inherit; }
+.bukti-link:hover { background: #dcfce7; }
 
 /* ── Bukti Modal ── */
 .bukti-overlay { position: fixed; inset: 0; z-index: 600; background: rgba(0,0,0,.65); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -827,7 +1015,7 @@ onMounted(() => {
 .pdf-modal-body { flex: 1; overflow: hidden; background: #f3f4f6; }
 .pdf-modal-iframe { width: 100%; height: 100%; border: none; display: block; }
 .btn-confirm { background: #48AF4A; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 6px; }
-.btn-confirm:hover { background: #3d9e3f; }
+.btn-confirm:hover { background: #48AF4A; }
 
 .empty-state { display: flex; flex-direction: column; align-items: center; padding: 40px 24px; gap: 10px; text-align: center; }
 .empty-state__icon { width: 64px; height: 64px; background: #f9fafb; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
@@ -866,7 +1054,9 @@ onMounted(() => {
 .sp-header__info { flex: 1; min-width: 0; }
 .sp-header__name { font-size: 15px; font-weight: 700; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sp-header__meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
-.sp-tag { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; border-radius: 100px; font-size: 11px; font-weight: 600; padding: 2px 8px; }
+.sp-tag { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; border-radius: 100px; font-size: 11px; font-weight: 600; padding: 2px 8px; }
+.sp-wa-link { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 11.5px; font-weight: 600; color: #16a34a; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 100px; padding: 3px 10px 3px 7px; text-decoration: none; transition: background 0.15s, color 0.15s; }
+.sp-wa-link:hover { background: #dcfce7; color: #15803d; }
 .sp-header__periode { font-size: 11.5px; color: #9ca3af; }
 .sp-close {
   background: #f3f4f6; border: none; border-radius: 9px;
@@ -888,7 +1078,7 @@ onMounted(() => {
 .sp-rekap__lbl { font-size: 10.5px; color: #9ca3af; font-weight: 500; margin-top: 2px; }
 .sp-rekap__item--green .sp-rekap__num { color: #16a34a; }
 .sp-rekap__item--yellow .sp-rekap__num { color: #ca8a04; }
-.sp-rekap__item--blue .sp-rekap__num { color: #2563eb; }
+.sp-rekap__item--blue .sp-rekap__num { color: #1a5c20; }
 .sp-rekap__item--red .sp-rekap__num { color: #dc2626; }
 
 .sp-progress-section { padding: 14px 22px 10px; flex-shrink: 0; }
@@ -903,13 +1093,21 @@ onMounted(() => {
 .sp-actions { padding: 10px 22px 14px; flex-shrink: 0; }
 .sp-btn-pdf {
   display: inline-flex; align-items: center; gap: 7px;
-  background: #f0fdf4; color: #15803d;
+  background: #f0fdf4; color: #16a34a;
   border: 1.5px solid #bbf7d0; border-radius: 9px;
   font-size: 12.5px; font-weight: 600; padding: 8px 16px;
   cursor: pointer; font-family: inherit; transition: all .15s;
 }
 .sp-btn-pdf:hover:not(:disabled) { background: #dcfce7; border-color: #86efac; }
 .sp-btn-pdf:disabled { opacity: .55; cursor: not-allowed; }
+.sp-btn-manual {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: #fff; color: #374151;
+  border: 1.5px solid #e5e7eb; border-radius: 9px;
+  font-size: 12.5px; font-weight: 600; padding: 8px 16px;
+  cursor: pointer; font-family: inherit; transition: all .15s;
+}
+.sp-btn-manual:hover { background: #f0fdf4; color: #16a34a; border-color: #bbf7d0; }
 
 .sp-divider {
   display: flex; align-items: center; padding: 0 22px;
@@ -950,9 +1148,10 @@ onMounted(() => {
 .ket-badge { font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 100px; white-space: nowrap; }
 .ket-badge--hadir  { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
 .ket-badge--izin   { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
-.ket-badge--sakit  { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.ket-badge--sakit  { background: #f0fdf4; color: #0d2818; border: 1px solid #bbf7d0; }
 .ket-badge--alpha  { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
 .ket-badge--belum  { color: #d1d5db; }
+.ket-badge-manual  { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; white-space: nowrap; cursor: default; }
 
 .sp-loading { display: flex; flex-direction: column; align-items: center; padding: 40px; gap: 12px; color: #9ca3af; font-size: 13px; }
 .sp-error-msg { padding: 20px 22px; color: #dc2626; font-size: 13px; }
@@ -981,7 +1180,16 @@ onMounted(() => {
 .modal-label { display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px; }
 .modal-textarea { width: 100%; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 10px 13px; font-size: 13px; font-family: inherit; resize: vertical; outline: none; color: #111827; box-sizing: border-box; }
 .modal-textarea:focus { border-color: #48AF4A; }
+.modal-input { width: 100%; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 9px 13px; font-size: 13px; font-family: inherit; outline: none; color: #111827; box-sizing: border-box; }
+.modal-input:focus { border-color: #48AF4A; }
+.modal-sub { font-size: 12.5px; color: #6b7280; margin-bottom: 16px; }
+.jenis-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+.jenis-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 12px; border-radius: 8px; border: 1.5px solid #d1d5db; background: #f9fafb; color: #6b7280; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+.jenis-btn:hover { border-color: #6ee7b7; background: #f0fdf4; color: #059669; }
+.jenis-btn--active { border-color: #16a34a; background: #f0fdf4; color: #16a34a; font-weight: 600; }
+.modal-error { font-size: 12px; color: #dc2626; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; padding: 8px 12px; margin-top: 4px; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.btn-spinner--white { width: 11px; height: 11px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
 .btn-cancel { background: #f3f4f6; color: #374151; border: none; border-radius: 10px; padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .btn-cancel:hover { background: #e5e7eb; }
 .btn-red { background: #dc2626; color: #fff; border: none; border-radius: 10px; padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }

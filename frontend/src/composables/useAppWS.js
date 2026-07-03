@@ -1,3 +1,5 @@
+import { playNotifSound } from '@/services/sound'
+
 const _handlers = new Set()
 let _ws = null
 let _reconnectTimer = null
@@ -23,6 +25,9 @@ function _connect() {
     try {
       const msg = JSON.parse(e.data)
       if (msg.type === 'force_logout') { _forceLogout(); return }
+      // Mainkan suara untuk event yang bersifat notifikasi
+      const NOTIF_TYPES = ['notifikasi', 'badge_update', 'chat_message', 'tiket_update']
+      if (NOTIF_TYPES.includes(msg.type)) playNotifSound()
       _handlers.forEach(h => h(msg))
     } catch {}
   }

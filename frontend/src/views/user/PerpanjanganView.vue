@@ -100,8 +100,34 @@
         </button>
       </div>
 
-      <!-- Info: tidak bisa ajukan karena status bukan aktif -->
-      <div v-if="!data && !pelaksanaanAktif" class="state-box state-box--locked">
+      <!-- Status aktif tapi masih terlalu awal (H > 5) -->
+      <div v-if="!data && statusAktifTapiTerlalu" class="state-box state-box--countdown">
+        <div class="countdown-icon">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="#16a34a" stroke-width="2"/>
+            <polyline points="12 6 12 12 16 14" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="countdown-badge">H-{{ sisaHariSelesai - 5 }} hari lagi</div>
+        <div class="countdown-title">Formulir Perpanjangan Belum Dibuka</div>
+        <div class="countdown-sub">
+          Pengajuan perpanjangan baru bisa dilakukan dalam
+          <strong>{{ sisaHariSelesai - 5 }} hari lagi</strong>
+          (mulai H-5 sebelum magang berakhir).
+        </div>
+        <div class="countdown-date">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="4" width="18" height="18" rx="2" stroke="#6b7280" stroke-width="1.8"/>
+            <line x1="16" y1="2" x2="16" y2="6" stroke="#6b7280" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="8" y1="2" x2="8" y2="6" stroke="#6b7280" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="3" y1="10" x2="21" y2="10" stroke="#6b7280" stroke-width="1.8"/>
+          </svg>
+          Formulir terbuka pada: <strong>{{ tanggalBukaForm }}</strong>
+        </div>
+      </div>
+
+      <!-- Status bukan aktif (belum mulai / sudah selesai) -->
+      <div v-if="!data && statusBukanAktif" class="state-box state-box--locked">
         <div class="locked-icon">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
             <rect x="3" y="11" width="18" height="11" rx="2" stroke="#f59e0b" stroke-width="2"/>
@@ -109,7 +135,9 @@
           </svg>
         </div>
         <div class="locked-title">Pengajuan Belum Tersedia</div>
-        <div class="locked-sub">Perpanjangan hanya bisa diajukan saat magang berstatus <strong>Aktif</strong>.</div>
+        <div class="locked-sub">
+          Perpanjangan hanya bisa diajukan saat magang berstatus <strong>Aktif</strong>.
+        </div>
       </div>
     </template>
   </div>
@@ -145,6 +173,25 @@ const sisaHariSelesai = computed(() => {
 const pelaksanaanAktif = computed(() =>
   props.pelaksanaan?.status === 'aktif' && sisaHariSelesai.value <= 5
 );
+
+// Status aktif tapi masih terlalu awal (H > 5)
+const statusAktifTapiTerlalu = computed(() =>
+  props.pelaksanaan?.status === 'aktif' && sisaHariSelesai.value > 5
+);
+
+// Status bukan aktif sama sekali
+const statusBukanAktif = computed(() =>
+  props.pelaksanaan?.status !== 'aktif'
+);
+
+// Tanggal formulir mulai terbuka (tanggal_selesai - 5 hari)
+const tanggalBukaForm = computed(() => {
+  if (!props.pelaksanaan?.tanggal_selesai) return '—';
+  const selesai = new Date(props.pelaksanaan.tanggal_selesai);
+  selesai.setHours(0, 0, 0, 0);
+  selesai.setDate(selesai.getDate() - 5);
+  return selesai.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+});
 
 const bannerTitle = computed(() => {
   if (data.value?.status === "menunggu")   return "Pengajuan Perpanjangan Sedang Ditinjau";
@@ -213,10 +260,30 @@ watch(
 
 /* State box */
 .state-box { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 48px 24px; text-align: center; }
+
+/* Locked — status bukan aktif */
 .state-box--locked { background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; }
 .locked-icon { margin-bottom: 4px; }
 .locked-title { font-size: 15px; font-weight: 600; color: #92400e; }
 .locked-sub   { font-size: 13px; color: #78350f; line-height: 1.5; max-width: 340px; }
+
+/* Countdown — aktif tapi terlalu awal */
+.state-box--countdown { background: #f0fdf4; border: 1px solid #86efac; border-radius: 12px; }
+.countdown-icon { margin-bottom: 4px; }
+.countdown-badge {
+  display: inline-block; padding: 4px 16px;
+  background: #16a34a; color: #fff;
+  border-radius: 999px; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.countdown-title { font-size: 15px; font-weight: 700; color: #14532d; margin-top: 2px; }
+.countdown-sub   { font-size: 13px; color: #15803d; line-height: 1.55; max-width: 380px; }
+.countdown-date  {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; color: #6b7280;
+  background: #fff; border: 1px solid #d1fae5;
+  border-radius: 8px; padding: 8px 14px;
+}
 
 /* Banner status */
 .status-banner { display: flex; align-items: flex-start; gap: 14px; padding: 18px 20px; border-radius: 12px; border: 1.5px solid; }

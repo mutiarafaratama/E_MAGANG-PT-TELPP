@@ -37,15 +37,18 @@
     <nav class="fp-nav">
       <div class="fp-nav__inner">
         <router-link to="/" class="fp-nav__brand">
-          <img src="/logotel.png" alt="TELPP" class="fp-nav__logo" />
+          <img src="/logo_emagang.png" alt="TELPP" class="fp-nav__logo" />
           <span>e-Magang <strong>PT TELPP</strong></span>
         </router-link>
         <div class="fp-nav__right">
           <router-link to="/" class="fp-nav__link">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M19 12H5M12 5l-7 7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Beranda
+            <span class="fp-nav__link-text">Beranda</span>
           </router-link>
-          <router-link to="/login" class="fp-nav__btn">Sudah punya akun? Masuk</router-link>
+          <router-link to="/login" class="fp-nav__btn">
+            <span class="fp-nav__btn-full">Sudah punya akun? Masuk</span>
+            <span class="fp-nav__btn-short">Masuk</span>
+          </router-link>
         </div>
       </div>
     </nav>
@@ -822,9 +825,10 @@ async function submitForm() {
   font-size: 13px; font-weight: 600; color: #1a3f28;
   text-decoration: none; border: 1.5px solid #1a3f28;
   border-radius: 7px; padding: 6px 14px;
-  transition: all 0.15s;
+  transition: all 0.15s; white-space: nowrap; flex-shrink: 0;
 }
 .fp-nav__btn:hover { background: #1a3f28; color: #fff; }
+.fp-nav__btn-short { display: none; }
 
 /* ── success ── */
 .fp-success {
@@ -942,9 +946,9 @@ async function submitForm() {
 /* ── notice ── */
 .fp-notice {
   display: flex; align-items: center; gap: 8px;
-  background: #eff6ff; border: 1px solid #bfdbfe;
+  background: #f0fdf4; border: 1px solid #bbf7d0;
   border-radius: 8px; padding: 12px 14px;
-  font-size: 13px; color: #1d4ed8; margin-top: 16px;
+  font-size: 13px; color: #0d2818; margin-top: 16px;
 }
 
 /* ── doc list (upload) ── */
@@ -1049,7 +1053,7 @@ async function submitForm() {
   font-family: inherit; display: inline-flex; align-items: center; gap: 6px;
   transition: background 0.15s;
 }
-.fp-btn-next:hover:not(:disabled) { background: #15803d; }
+.fp-btn-next:hover:not(:disabled) { background: #16a34a; }
 .fp-btn-next:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* ── spinner ── */
@@ -1070,5 +1074,16 @@ async function submitForm() {
   .fp-grid   { grid-template-columns: 1fr; }
   .fp-review-grid, .fp-review-docs { grid-template-columns: 1fr; }
   .fp-wrap { padding: 0; }
+}
+
+@media (max-width: 560px) {
+  .fp-nav__inner { padding: 0 14px; gap: 8px; }
+  .fp-nav__brand span { font-size: 12.5px; }
+  .fp-nav__logo { height: 22px; }
+  .fp-nav__right { gap: 8px; }
+  .fp-nav__link-text { display: none; }
+  .fp-nav__btn { padding: 6px 12px; font-size: 12.5px; }
+  .fp-nav__btn-full { display: none; }
+  .fp-nav__btn-short { display: inline; }
 }
 </style>

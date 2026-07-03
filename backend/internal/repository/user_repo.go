@@ -526,3 +526,39 @@ func (r *UserRepository) GetKandidatHapusOtomatis(ctx context.Context) ([]uuid.U
         }
         return ids, rows.Err()
 }
+
+// SavePasswordResetToken — simpan token reset kata sandi ke DB
+func (r *UserRepository) SavePasswordResetToken(ctx context.Context, userID uuid.UUID, tokenHash string, expiredAt time.Time) error {
+	// Hapus token lama milik user ini yang belum dipakai agar tidak menumpuk
+	r.db.Exec(ctx, `DELETE FROM password_reset_tokens WHERE user_id = $1 AND used = false`, userID)
+
+	_, err := r.db.Exec(ctx,
+		`INSERT INTO password_reset_tokens (user_id, token_hash, expired_at)
+		 VALUES ($1, $2, $3)`,
+		userID, tokenHash, expiredAt,
+	)
+	return err
+}
+
+// FindPasswordResetToken — cari token reset berdasarkan hash
+func (r *UserRepository) FindPasswordResetToken(ctx context.Context, tokenHash string) (*models.PasswordResetToken, error) {
+	row := r.db.QueryRow(ctx,
+		`SELECT id, user_id, token_hash, expired_at, used, created_at
+		 FROM password_reset_tokens WHERE token_hash = $1`,
+		tokenHash,
+	)
+	var t models.PasswordResetToken
+	if err := row.Scan(&t.ID, &t.UserID, &t.TokenHash, &t.ExpiredAt, &t.Used, &t.CreatedAt); err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+// MarkResetTokenUsed — tandai token sebagai sudah dipakai
+func (r *UserRepository) MarkResetTokenUsed(ctx context.Context, tokenHash string) error {
+	_, err := r.db.Exec(ctx,
+		`UPDATE password_reset_tokens SET used = true WHERE token_hash = $1`,
+		tokenHash,
+	)
+	return err
+}

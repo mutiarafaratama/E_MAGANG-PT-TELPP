@@ -8,7 +8,7 @@
       <div class="sidebar-header">
         <div class="sidebar-logo">
           <div class="sidebar-logo__mark">
-            <img src="/logotel.png" alt="PT TELPP" class="sidebar-logo__img" />
+            <img src="/logo_emagang.png" alt="e-Magang" class="sidebar-logo__img" />
           </div>
           <div v-if="!collapsed" class="sidebar-logo__text">
             <span class="sidebar-logo__name">e-Magang</span>
@@ -186,6 +186,13 @@
     </div>
   </div>
 
+  <!-- Floating In-App Toast Notifikasi (foreground: FCM + WebSocket) -->
+  <NotifToast
+    :toasts="toasts"
+    @dismiss="dismissToast"
+    @navigate="navigateFromToast"
+  />
+
   <!-- Modal Peringatan Ganti Password -->
   <Teleport to="body">
     <div v-if="showPwWarning" class="pw-warn-backdrop">
@@ -220,6 +227,8 @@ import { useRouter } from "vue-router";
 import { useAuth } from "@/hooks/useAuth";
 import api from "@/lib/api";
 import { setupPushNotifications } from "@/services/fcm";
+import { onNotif } from "@/services/notif-event";
+import NotifToast from "@/components/NotifToast.vue";
 
 export interface NavItem {
   key: string;
@@ -316,6 +325,36 @@ interface Notif {
   created_at: string;
 }
 
+// ── In-App Toast Notifikasi ─────────────────────────────────
+interface Toast {
+  id: number;
+  title: string;
+  body?: string;
+  route?: string;
+}
+let _toastId = 0;
+const toasts = ref<Toast[]>([]);
+const _toastTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
+function showToast(payload: { title: string; body?: string; route?: string }) {
+  const id = ++_toastId;
+  toasts.value.push({ id, title: payload.title, body: payload.body, route: payload.route });
+  // Auto-dismiss setelah 5 detik
+  _toastTimers.set(id, setTimeout(() => dismissToast(id), 5000));
+}
+
+function dismissToast(id: number) {
+  toasts.value = toasts.value.filter(t => t.id !== id);
+  const timer = _toastTimers.get(id);
+  if (timer) { clearTimeout(timer); _toastTimers.delete(id); }
+}
+
+function navigateFromToast(route: string) {
+  router.push(route).catch(() => {});
+}
+
+let _unsubNotif: (() => void) | null = null;
+
 // ── Password warning ────────────────────────────────────────
 const showPwWarning = ref(false);
 
@@ -405,6 +444,13 @@ onMounted(() => {
   checkPasswordChanged();
   pollInterval = setInterval(fetchNotifBadge, 30_000);
 
+  // Subscribe ke notif event (dari FCM foreground dan WebSocket)
+  // Suara sudah dipanggil di fcm.js dan useAppWS.js sebelum emit
+  _unsubNotif = onNotif((payload) => {
+    showToast({ title: payload.title, body: payload.body, route: payload.route });
+    notifBadge.value++;
+  });
+
   // Inisialisasi FCM push notification — minta izin & daftarkan token
   setupPushNotifications().catch(() => {});
 
@@ -417,6 +463,9 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener("click", onClickOutside);
   if (pollInterval) clearInterval(pollInterval);
+  if (_unsubNotif) { _unsubNotif(); _unsubNotif = null; }
+  _toastTimers.forEach(t => clearTimeout(t));
+  _toastTimers.clear();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.removeEventListener('message', onSwMessage);
   }

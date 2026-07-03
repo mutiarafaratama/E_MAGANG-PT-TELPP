@@ -3,7 +3,7 @@
 importScripts('https://www.gstatic.com/firebasejs/11.0.0/firebase-app-compat.js')
 importScripts('https://www.gstatic.com/firebasejs/11.0.0/firebase-messaging-compat.js')
 
-const CACHE_NAME = 'emagang-v2'
+const CACHE_NAME = 'emagang-v4'
 const STATIC_ASSETS = ['/', '/manifest.json']
 
 // ── Firebase init ──────────────────────────────────────────────────────────────
@@ -26,8 +26,8 @@ messaging.onBackgroundMessage((payload) => {
 
   self.registration.showNotification(title, {
     body,
-    icon: '/logotel.png',
-    badge: '/logotel.png',
+    icon: '/logo_emagang.png',
+    badge: '/logo_emagang.png',
     data: { route },
     vibrate: [200, 100, 200],
     tag: 'emagang-notif',

@@ -140,6 +140,24 @@ type AuthResponse struct {
         User         UserPublic `json:"user"`
 }
 
+type PasswordResetToken struct {
+        ID        uuid.UUID `db:"id"`
+        UserID    uuid.UUID `db:"user_id"`
+        TokenHash string    `db:"token_hash"`
+        ExpiredAt time.Time `db:"expired_at"`
+        Used      bool      `db:"used"`
+        CreatedAt time.Time `db:"created_at"`
+}
+
+type ForgotPasswordRequest struct {
+        Email string `json:"email" binding:"required,email"`
+}
+
+type ResetPasswordRequest struct {
+        Token       string `json:"token" binding:"required"`
+        NewPassword string `json:"new_password" binding:"required,min=8"`
+}
+
 type NotifBadgeCount struct {
         TotalUnread  int `json:"total_unread"`
         ChatMenunggu int `json:"chat_menunggu"`
@@ -287,10 +305,15 @@ type PelaksanaanMagang struct {
         SertifikatGeneratedAt *time.Time        `json:"sertifikat_generated_at" db:"sertifikat_generated_at"`
         CreatedAt             time.Time         `json:"created_at" db:"created_at"`
         UpdatedAt             time.Time         `json:"updated_at" db:"updated_at"`
+        WAPembimbing          *string           `json:"wa_pembimbing" db:"wa_pembimbing"`
         // join fields (optional)
         PembimbingNama    *string `json:"pembimbing_nama,omitempty" db:"pembimbing_nama"`
         SudahDiperpanjang bool    `json:"sudah_diperpanjang,omitempty" db:"sudah_diperpanjang"`
         NamaPeserta       string  `json:"nama_peserta,omitempty" db:"nama_peserta"`
+}
+
+type UpdateWAPembimbingRequest struct {
+        WAPembimbing string `json:"wa_pembimbing"`
 }
 
 type PelaksanaanDetail struct {
@@ -305,12 +328,21 @@ type PelaksanaanDetail struct {
 }
 
 type SetJadwalRequest struct {
-        TglMulai      string `json:"tgl_mulai"`
-        TglSelesai    string `json:"tgl_selesai"`
-        TanggalMulai  string `json:"tanggal_mulai" binding:"required"`
+        TglMulai       string `json:"tgl_mulai"`
+        TglSelesai     string `json:"tgl_selesai"`
+        TanggalMulai   string `json:"tanggal_mulai" binding:"required"`
         TanggalSelesai string `json:"tanggal_selesai" binding:"required"`
-        Divisi        string `json:"divisi"`
-        Pembimbing    string `json:"pembimbing"`
+        Divisi         string `json:"divisi"`
+        Pembimbing     string `json:"pembimbing"`
+        WAPembimbing   string `json:"wa_pembimbing"`
+}
+
+type AbsensiManualPulangRequest struct {
+        PelaksanaanID string `json:"pelaksanaan_id" binding:"required"`
+        Tanggal       string `json:"tanggal" binding:"required"`
+        JamKeluar     string `json:"jam_keluar" binding:"required"`
+        Kegiatan      string `json:"kegiatan"`
+        CatatanManual string `json:"catatan_manual"`
 }
 
 type TolakIzinSakitRequest struct {
@@ -340,7 +372,19 @@ type Absensi struct {
         ApprovedBy     *uuid.UUID `json:"approved_by" db:"approved_by"`
         ApprovedAt     *time.Time `json:"approved_at" db:"approved_at"`
         Catatan        *string    `json:"catatan" db:"catatan"`
+        IsManual       bool       `json:"is_manual" db:"is_manual"`
+        DiinputOleh    *uuid.UUID `json:"diinput_oleh" db:"diinput_oleh"`
+        CatatanManual  *string    `json:"catatan_manual" db:"catatan_manual"`
         CreatedAt      time.Time  `json:"created_at" db:"created_at"`
+}
+
+type AbsensiManualRequest struct {
+        PelaksanaanID string `json:"pelaksanaan_id" binding:"required"`
+        Tanggal       string `json:"tanggal" binding:"required"`
+        JamMasuk      string `json:"jam_masuk" binding:"required"`
+        JamKeluar     string `json:"jam_keluar"`
+        Kegiatan      string `json:"kegiatan"`
+        CatatanManual string `json:"catatan_manual"`
 }
 
 type AbsensiConfig struct {
@@ -780,19 +824,21 @@ type AbsensiCheckOutRequest struct {
 // ============================================================
 
 type RekapAbsensiRow struct {
-        PelaksanaanID  uuid.UUID `json:"pelaksanaan_id" db:"pelaksanaan_id"`
-        NamaLengkap    string    `json:"nama_lengkap" db:"nama_lengkap"`
-        AsalInstitusi  string    `json:"asal_institusi" db:"asal_institusi"`
-        KategoriMagang string    `json:"kategori_magang" db:"kategori_magang"`
-        Divisi         string    `json:"divisi" db:"divisi"`
-        TanggalMulai   time.Time `json:"tanggal_mulai" db:"tanggal_mulai"`
-        TanggalSelesai time.Time `json:"tanggal_selesai" db:"tanggal_selesai"`
-        Status         string    `json:"status" db:"status"`
-        Hadir          int       `json:"hadir" db:"hadir"`
-        Izin           int       `json:"izin" db:"izin"`
-        Sakit          int       `json:"sakit" db:"sakit"`
-        Alpha          int       `json:"alpha" db:"alpha"`
-        PendingApproval int      `json:"pending_approval" db:"pending_approval"`
+        PelaksanaanID   uuid.UUID `json:"pelaksanaan_id" db:"pelaksanaan_id"`
+        NamaLengkap     string    `json:"nama_lengkap" db:"nama_lengkap"`
+        AsalInstitusi   string    `json:"asal_institusi" db:"asal_institusi"`
+        KategoriMagang  string    `json:"kategori_magang" db:"kategori_magang"`
+        Divisi          string    `json:"divisi" db:"divisi"`
+        Pembimbing      *string   `json:"pembimbing" db:"pembimbing"`
+        WAPembimbing    *string   `json:"wa_pembimbing" db:"wa_pembimbing"`
+        TanggalMulai    time.Time `json:"tanggal_mulai" db:"tanggal_mulai"`
+        TanggalSelesai  time.Time `json:"tanggal_selesai" db:"tanggal_selesai"`
+        Status          string    `json:"status" db:"status"`
+        Hadir           int       `json:"hadir" db:"hadir"`
+        Izin            int       `json:"izin" db:"izin"`
+        Sakit           int       `json:"sakit" db:"sakit"`
+        Alpha           int       `json:"alpha" db:"alpha"`
+        PendingApproval int       `json:"pending_approval" db:"pending_approval"`
 }
 
 // ============================================================

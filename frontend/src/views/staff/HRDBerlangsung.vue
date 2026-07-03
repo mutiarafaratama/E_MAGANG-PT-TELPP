@@ -249,6 +249,39 @@
                 Belum ditugaskan
               </div>
             </template>
+
+            <!-- WA Pembimbing -->
+            <div class="wa-section" style="margin-top:10px">
+              <div class="wa-row">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" fill="#25D366"/>
+                  <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.954-1.418A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" stroke="#25D366" stroke-width="1.5"/>
+                </svg>
+                <span class="wa-label">WA Pembimbing</span>
+                <button v-if="!editWA" class="edit-inline-btn" @click="startEditWA">{{ selected?.wa_pembimbing ? 'Ganti' : 'Tambah' }}</button>
+              </div>
+              <div v-if="editWA" class="pembimbing-edit" style="margin-top:8px">
+                <input v-model="editWAText" type="tel" class="pembimbing-input"
+                  placeholder="Contoh: 08123456789"
+                  :disabled="savingWA" @keyup.enter="saveWA" />
+                <div v-if="waError" class="pembimbing-err">{{ waError }}</div>
+                <div class="pembimbing-edit-btns">
+                  <button class="btn-cancel-sm" @click="editWA = false; waError = ''"
+                    :disabled="savingWA">Batal</button>
+                  <button class="btn-save-sm" @click="saveWA" :disabled="savingWA">
+                    {{ savingWA ? 'Menyimpan…' : 'Simpan' }}
+                  </button>
+                </div>
+              </div>
+              <div v-else class="wa-value">
+                <a v-if="selected?.wa_pembimbing"
+                  :href="`https://wa.me/${selected.wa_pembimbing.replace(/\D/g,'').replace(/^0/,'62')}`"
+                  target="_blank" rel="noopener" class="wa-link">
+                  {{ selected.wa_pembimbing }}
+                </a>
+                <span v-else class="pembimbing-empty" style="font-size:12px;margin-top:4px">Belum diisi</span>
+              </div>
+            </div>
           </div>
 
           <!-- Laporan Magang (tampil jika status upload_laporan atau penilaian) -->
@@ -364,6 +397,7 @@ interface Pelaksanaan {
   divisi: string | null;
   pembimbing_id: string | null;
   pembimbing_nama: string | null;
+  wa_pembimbing: string | null;
   status: string;
   nilai: number | null;
 }
@@ -405,6 +439,11 @@ const editPembimbing    = ref(false);
 const editPembimbingText = ref('');
 const savingPembimbing  = ref(false);
 const pembimbingError   = ref('');
+
+const editWA    = ref(false);
+const editWAText = ref('');
+const savingWA  = ref(false);
+const waError   = ref('');
 
 // ── Laporan Magang ────────────────────────────────────────────
 const laporanList    = ref<any[]>([]);
@@ -563,6 +602,30 @@ async function savePembimbing() {
   }
 }
 
+function startEditWA() {
+  editWAText.value = selected.value?.wa_pembimbing ?? '';
+  waError.value = '';
+  editWA.value = true;
+}
+
+async function saveWA() {
+  if (!selected.value) return;
+  savingWA.value = true;
+  waError.value = '';
+  try {
+    await api.patch(`/api/pelaksanaan/${selected.value.id}/wa-pembimbing`, {
+      wa_pembimbing: editWAText.value.trim(),
+    });
+    const newWA = editWAText.value.trim() || null;
+    selected.value = { ...selected.value, wa_pembimbing: newWA };
+    editWA.value = false;
+  } catch (e: any) {
+    waError.value = e.response?.data?.message ?? 'Gagal menyimpan nomor WA';
+  } finally {
+    savingWA.value = false;
+  }
+}
+
 async function updateStatus(id: string, status: string) {
   updatingId.value = id;
   updateError.value = '';
@@ -621,7 +684,7 @@ onMounted(fetchData);
 .card-header-actions { display:flex; align-items:center; gap:8px; }
 .count-badge { background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; font-size:11px; font-weight:700; padding:4px 12px; border-radius:100px; }
 .btn-green-sm { background:#48AF4A; color:#fff; border:none; border-radius:8px; padding:6px 14px; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:5px; }
-.btn-green-sm:hover { background:#3d9e3f; }
+.btn-green-sm:hover { background:#48AF4A; }
 
 .table-wrap { overflow-x:auto; }
 .data-table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -629,10 +692,10 @@ onMounted(fetchData);
 .data-table td { padding:13px 16px; border-bottom:1px solid #f9fafb; color:#374151; vertical-align:middle; }
 
 .name-cell { display:flex; align-items:center; gap:10px; }
-.name-avatar { width:32px; height:32px; border-radius:8px; background:linear-gradient(135deg,#48AF4A,#2d8f30); color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.name-avatar { width:32px; height:32px; border-radius:8px; background:linear-gradient(135deg,#48AF4A,#1a5c20); color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 .name-text { font-weight:600; color:#111827; font-size:12.5px; }
 .name-sub { font-size:11px; color:#9ca3af; }
-.tag { background:#eff6ff; color:#1d4ed8; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:600; white-space:nowrap; }
+.tag { background:#f0fdf4; color:#0d2818; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:600; white-space:nowrap; }
 
 .empty-state { display:flex; flex-direction:column; align-items:center; padding:44px 24px; gap:12px; text-align:center; }
 .empty-state__icon { width:72px; height:72px; background:#f9fafb; border-radius:50%; display:flex; align-items:center; justify-content:center; }
@@ -644,7 +707,7 @@ onMounted(fetchData);
 .sp-badge { display:inline-flex; align-items:center; font-size:11px; font-weight:700; padding:3px 9px; border-radius:100px; white-space:nowrap; }
 .sp-badge--green  { background:#dcfce7; color:#16a34a; }
 .sp-badge--gray   { background:#f3f4f6; color:#6b7280; }
-.sp-badge--blue   { background:#dbeafe; color:#2563eb; }
+.sp-badge--blue   { background:#dcfce7; color:#1a5c20; }
 .sp-badge--orange { background:#ffedd5; color:#ea580c; }
 
 .sisa-hari       { font-size:12px; font-weight:700; color:#374151; }
@@ -654,7 +717,7 @@ onMounted(fetchData);
 .aksi-cell { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .btn-aksi { border:none; border-radius:7px; padding:5px 11px; font-size:11.5px; font-weight:700; font-family:inherit; cursor:pointer; white-space:nowrap; transition:opacity .15s; }
 .btn-aksi:disabled { opacity:0.5; cursor:default; }
-.btn-aksi--green  { background:#dcfce7; color:#15803d; }
+.btn-aksi--green  { background:#dcfce7; color:#16a34a; }
 .btn-aksi--green:hover:not(:disabled)  { background:#bbf7d0; }
 .btn-aksi--orange { background:#ffedd5; color:#c2410c; }
 .btn-aksi--orange:hover:not(:disabled) { background:#fed7aa; }
@@ -680,7 +743,7 @@ onMounted(fetchData);
 .banner-sisa { font-size:12.5px; color:#6b7280; margin-left:auto; font-weight:500; }
 .status-banner--aktif          { background:#f0fdf4; }
 .status-banner--menunggu_mulai { background:#f9fafb; }
-.status-banner--upload_laporan { background:#eff6ff; }
+.status-banner--upload_laporan { background:#f0fdf4; }
 .status-banner--penilaian      { background:#fff7ed; }
 .status-banner--selesai        { background:#f0fdf4; }
 
@@ -695,7 +758,7 @@ onMounted(fetchData);
 
 /* ── Pembimbing ── */
 .pembimbing-box { display:flex; align-items:center; gap:12px; background:#f9fafb; border:1px solid #e9f5e9; border-radius:10px; padding:12px 16px; }
-.pembimbing-avatar { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#48AF4A,#2d8f30); color:#fff; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.pembimbing-avatar { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#48AF4A,#1a5c20); color:#fff; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 .pembimbing-name { font-size:13px; font-weight:600; color:#111827; }
 .pembimbing-role { font-size:11px; color:#9ca3af; margin-top:2px; }
 .pembimbing-empty { display:flex; align-items:center; gap:8px; font-size:13px; color:#9ca3af; background:#f9fafb; border-radius:8px; padding:12px 14px; }
@@ -706,12 +769,18 @@ onMounted(fetchData);
 .pembimbing-input:focus { border-color:#48AF4A; box-shadow:0 0 0 3px rgba(72,175,74,.12); }
 .pembimbing-input:disabled { background:#f9fafb; color:#9ca3af; cursor:not-allowed; }
 .pembimbing-err { font-size:12px; color:#dc2626; padding:2px 0; }
+.wa-section { border-top:1px dashed #e9f5e9; padding-top:10px; }
+.wa-row { display:flex; align-items:center; gap:7px; margin-bottom:4px; }
+.wa-label { font-size:12px; font-weight:600; color:#6b7280; flex:1; }
+.wa-value { padding-left:20px; }
+.wa-link { font-size:13px; font-weight:600; color:#16a34a; text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
+.wa-link:hover { text-decoration:underline; }
 .pembimbing-edit-btns { display:flex; gap:8px; }
 .btn-cancel-sm { flex:1; background:#f3f4f6; color:#374151; border:none; border-radius:8px; padding:8px 12px; font-size:12.5px; font-weight:600; font-family:inherit; cursor:pointer; }
 .btn-cancel-sm:hover:not(:disabled) { background:#e5e7eb; }
 .btn-cancel-sm:disabled { opacity:.5; cursor:not-allowed; }
 .btn-save-sm { flex:1; background:#48AF4A; color:#fff; border:none; border-radius:8px; padding:8px 12px; font-size:12.5px; font-weight:600; font-family:inherit; cursor:pointer; }
-.btn-save-sm:hover:not(:disabled) { background:#3d9e3f; }
+.btn-save-sm:hover:not(:disabled) { background:#48AF4A; }
 .btn-save-sm:disabled { opacity:.5; cursor:not-allowed; }
 
 /* ── Laporan Magang ── */
@@ -727,7 +796,7 @@ onMounted(fetchData);
 .laporan-item__info { flex:1; min-width:0; }
 .laporan-item__name { font-size:12px; font-weight:600; color:#111827; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .laporan-item__meta { display:flex; align-items:center; gap:6px; margin-top:2px; font-size:11px; color:#9ca3af; flex-wrap:wrap; }
-.lap-versi { background:#eff6ff; color:#2563eb; font-size:10px; font-weight:700; padding:1px 6px; border-radius:100px; }
+.lap-versi { background:#f0fdf4; color:#1a5c20; font-size:10px; font-weight:700; padding:1px 6px; border-radius:100px; }
 .laporan-item__right { display:flex; align-items:center; gap:6px; flex-shrink:0; }
 .lap-status { font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:100px; white-space:nowrap; }
 .lap-status--menunggu_review { background:#fffbeb; color:#b45309; }
@@ -746,7 +815,7 @@ onMounted(fetchData);
 .btn-revisi:hover:not(:disabled) { background:#fee2e2; }
 .btn-revisi:disabled { opacity:.5; cursor:not-allowed; }
 .btn-acc { flex:1; display:flex; align-items:center; justify-content:center; gap:6px; border:none; border-radius:8px; padding:9px 12px; font-size:12.5px; font-weight:700; font-family:inherit; cursor:pointer; background:#48AF4A; color:#fff; }
-.btn-acc:hover:not(:disabled) { background:#3d9e3f; }
+.btn-acc:hover:not(:disabled) { background:#48AF4A; }
 .btn-acc:disabled { opacity:.5; cursor:not-allowed; }
 
 .review-done-box { display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; color:#16a34a; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:9px 12px; }
@@ -763,7 +832,7 @@ onMounted(fetchData);
 .btn-full { width:100%; border:none; border-radius:10px; padding:12px; font-size:13.5px; font-weight:700; font-family:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
 .btn-full:disabled { opacity:0.5; cursor:default; }
 .btn-full--green  { background:#48AF4A; color:#fff; }
-.btn-full--green:hover:not(:disabled) { background:#3d9e3f; }
+.btn-full--green:hover:not(:disabled) { background:#48AF4A; }
 .btn-full--orange { background:#ea580c; color:#fff; }
 .btn-full--orange:hover:not(:disabled) { background:#c2410c; }
 
